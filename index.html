@@ -1,3 +1,4 @@
+<!-- index.html: -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -57,10 +58,24 @@
                                 <th>Действия</th>
                             </tr>
                         </thead>
-                        <tbody></tbody>
+                        <tbody>
+                        </tbody>
                     </table>
                 </div>
             </div>
+            
+            <template id="object-row-template">
+                <tr>
+                    <td class="object-name"></td>
+                    <td class="object-address"></td>
+                    <td class="object-tags"></td>
+                    <td class="actions">
+                        <button class="btn-edit" data-id="">Редактировать</button>
+                        <button class="btn-tags" data-id="">Теги объекта</button>
+                        <button class="btn-delete" data-id="">Удалить</button>
+                    </td>
+                </tr>
+            </template>
             
             <div id="users-page" class="page admin-only">
                 <div class="page-header">

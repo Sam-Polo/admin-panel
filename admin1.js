@@ -1,3 +1,4 @@
+// admin1.js:
 // инициализация панели управления
 function initAdminPanel(user, isAdmin) {
     console.log('initAdminPanel вызван:', { user: user.email, isAdmin });
@@ -117,26 +118,75 @@ async function loadObjects(user, isAdmin) {
         // заполняем таблицу
         tbody.innerHTML = ''; // очищаем таблицу
         
+        const template = document.getElementById('object-row-template');
+        if (!template) {
+            console.error('Не найден шаблон строки объекта');
+            return;
+        }
+        
         snapshot.forEach(doc => {
             const data = doc.data();
             console.log('Обработка объекта:', { id: doc.id, name: data.name });
             
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${data.name}</td>
-                <td>${data.address}</td>
-                <td>${data.tags ? data.tags.length : 0}</td>
-                <td class="actions">
-                    <button class="btn-edit" data-id="${doc.id}">Редактировать</button>
-                    <button class="btn-tags" data-id="${doc.id}">Теги объекта</button>
-                    <button class="btn-delete" data-id="${doc.id}">Удалить</button>
-                </td>
-            `;
-            tbody.appendChild(row);
+            const clone = template.content.cloneNode(true);
+            
+            // заполняем данные
+            clone.querySelector('.object-name').textContent = data.name;
+            clone.querySelector('.object-address').textContent = data.address;
+            clone.querySelector('.object-tags').textContent = data.tags ? data.tags.length : 0;
+            
+            // устанавливаем id для кнопок и добавляем обработчики
+            const editBtn = clone.querySelector('.btn-edit');
+            const tagsBtn = clone.querySelector('.btn-tags');
+            const deleteBtn = clone.querySelector('.btn-delete');
+            
+            console.log('Найдены кнопки:', {
+                edit: editBtn ? 'да' : 'нет',
+                tags: tagsBtn ? 'да' : 'нет',
+                delete: deleteBtn ? 'да' : 'нет'
+            });
+            
+            if (!editBtn) {
+                console.error('Кнопка редактирования не найдена в шаблоне');
+                return;
+            }
+            
+            editBtn.dataset.id = doc.id;
+            tagsBtn.dataset.id = doc.id;
+            deleteBtn.dataset.id = doc.id;
+            
+            // добавляем обработчики сразу к клонированным кнопкам
+            editBtn.addEventListener('click', (e) => {
+                console.log('Клик по кнопке редактирования:', {
+                    id: doc.id,
+                    target: e.target,
+                    currentTarget: e.currentTarget
+                });
+                window.location.href = `edit-object.html?id=${doc.id}`;
+            });
+            
+            tagsBtn.addEventListener('click', () => {
+                console.log('Управление тегами объекта:', doc.id);
+                // TODO: показать форму управления тегами объекта
+            });
+            
+            deleteBtn.addEventListener('click', async () => {
+                if (confirm('Удалить объект?')) {
+                    try {
+                        await db.collection('sportobjects').doc(doc.id).delete();
+                        loadObjects(user, isAdmin); // перезагружаем список
+                    } catch (error) {
+                        alert('Ошибка удаления: ' + error.message);
+                    }
+                }
+            });
+            
+            tbody.appendChild(clone);
+            
+            // проверяем, что кнопка действительно добавлена в DOM
+            const addedEditBtn = tbody.querySelector(`.btn-edit[data-id="${doc.id}"]`);
+            console.log('Кнопка добавлена в DOM:', addedEditBtn ? 'да' : 'нет');
         });
-        
-        // добавляем обработчики
-        addObjectHandlers(user);
         
     } catch (error) {
         console.error('Ошибка загрузки объектов:', error);
@@ -206,42 +256,6 @@ async function loadUsers() {
     }
 }
 
-// добавление обработчиков для объектов
-function addObjectHandlers(user) {
-    // обработчик добавления
-    document.getElementById('add-object-btn').addEventListener('click', () => {
-        // TODO: показать форму добавления объекта
-    });
-    
-    // обработчики редактирования, тегов и удаления
-    document.querySelectorAll('.btn-edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            // TODO: показать форму редактирования объекта
-        });
-    });
-    
-    document.querySelectorAll('.btn-tags').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const id = btn.dataset.id;
-            // TODO: показать форму управления тегами объекта
-        });
-    });
-    
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            if (confirm('Удалить объект?')) {
-                try {
-                    await db.collection('sportobjects').doc(btn.dataset.id).delete();
-                    loadObjects(user, true); // перезагружаем список
-                } catch (error) {
-                    alert('Ошибка удаления: ' + error.message);
-                }
-            }
-        });
-    });
-}
-
 // добавление обработчиков для пользователей
 function addUserHandlers() {
     // обработчик добавления
@@ -250,11 +264,10 @@ function addUserHandlers() {
     });
     
     // обработчики сохранения роли
-    document.querySelectorAll('.btn-save').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const userId = btn.dataset.id;
-            const roleSelect = document.querySelector(`.role-select[data-id="${userId}"]`);
-            const newRole = roleSelect.value;
+    document.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', async () => {
+            const userId = select.dataset.uid;
+            const newRole = select.value;
             
             try {
                 // обновляем роль через API
@@ -282,11 +295,11 @@ function addUserHandlers() {
     });
     
     // обработчики удаления
-    document.querySelectorAll('.btn-delete').forEach(btn => {
+    document.querySelectorAll('.delete-user').forEach(btn => {
         btn.addEventListener('click', async () => {
             if (confirm('Удалить пользователя?')) {
                 try {
-                    const response = await fetch(`http://localhost:3001/api/users/${btn.dataset.id}`, {
+                    const response = await fetch(`http://localhost:3001/api/users/${btn.dataset.uid}`, {
                         method: 'DELETE'
                     });
                     
@@ -302,6 +315,12 @@ function addUserHandlers() {
         });
     });
 }
+
+// обработчик добавления объекта
+document.getElementById('add-object-btn').addEventListener('click', () => {
+    // TODO: показать форму добавления объекта
+    console.log('Добавление нового объекта');
+});
 
 // модальное окно для пользователей
 let currentUserId = null;

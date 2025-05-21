@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование объекта - SportYugra Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js" defer></script>
+</head>
+<body>
+    <div id="edit-object-container" class="container">
+        <div class="edit-box">
+            <h1>Редактирование объекта</h1>
+            <form id="edit-object-form">
+                <div class="form-group">
+                    <label for="object-name">Название:</label>
+                    <input type="text" id="object-name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="object-description">Описание:</label>
+                    <textarea id="object-description" rows="4" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="object-address">Адрес:</label>
+                    <input type="text" id="object-address" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="object-phone">Телефон:</label>
+                    <input type="tel" id="object-phone" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="object-location">Координаты:</label>
+                    <div class="location-inputs">
+                        <input type="number" id="object-lat" step="any" placeholder="Широта" required>
+                        <input type="number" id="object-lng" step="any" placeholder="Долгота" required>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit">Сохранить</button>
+                    <button type="button" id="cancel-btn">Отмена</button>
+                </div>
+            </form>
+            <div id="error-message" class="error"></div>
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="firebase-config.js" defer></script>
+    <script src="auth.js" defer></script>
+    <script src="edit-object.js" defer></script>
+</body>
+</html> 
