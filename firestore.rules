@@ -2,9 +2,9 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // функция проверки роли суперпользователя
-    function isSuperuser() {
-      return request.auth != null && request.auth.token.superuser == true;
+    // функция проверки роли админа
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
     }
     
     // функция проверки роли модератора
@@ -21,17 +21,17 @@ service cloud.firestore {
     
     // правила для коллекции sportobjects
     match /sportobjects/{objectId} {
-      // чтение: суперпользователь или модератор с доступом к объекту
-      allow read: if isSuperuser() || hasAccessToObject(objectId);
+      // чтение: админ или модератор с доступом к объекту
+      allow read: if isAdmin() || hasAccessToObject(objectId);
       
-      // создание: суперпользователь или модератор
-      allow create: if isSuperuser() || isModerator();
+      // создание: админ или модератор
+      allow create: if isAdmin() || isModerator();
       
-      // обновление: суперпользователь или модератор с доступом к объекту
-      allow update: if isSuperuser() || hasAccessToObject(objectId);
+      // обновление: админ или модератор с доступом к объекту
+      allow update: if isAdmin() || hasAccessToObject(objectId);
       
-      // удаление: суперпользователь или модератор с доступом к объекту
-      allow delete: if isSuperuser() || hasAccessToObject(objectId);
+      // удаление: админ или модератор с доступом к объекту
+      allow delete: if isAdmin() || hasAccessToObject(objectId);
     }
     
     // правила для коллекции tags
@@ -39,11 +39,17 @@ service cloud.firestore {
       // чтение: все авторизованные пользователи
       allow read: if request.auth != null;
       
-      // запись: только суперпользователь
-      allow write: if isSuperuser();
+      // запись: только админ
+      allow write: if isAdmin();
     }
 
-    // Для остальных коллекций требуем аутентификацию (если такие есть)
+    // правила для коллекции users
+    match /users/{userId} {
+      // доступ только для админа
+      allow read, write: if isAdmin();
+    }
+
+    // Для остальных коллекций требуем аутентификацию
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

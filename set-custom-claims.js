@@ -18,9 +18,9 @@ async function setCustomClaims(uid, claims) {
 
 // примеры установки claims
 async function main() {
-  // для суперпользователя
-  await setCustomClaims('IiRrhPqApfT1ytsfoU7DCU9hLav1', {
-    superuser: true
+  // для админа
+  await setCustomClaims('4am75bglHvTXKmrfMz5DQtQLzm43', {
+    admin: true
   });
 
   // для модератора
