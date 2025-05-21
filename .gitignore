@@ -1,0 +1,46 @@
+# Игнорировать зависимости Node.js
+node_modules/
+.npm/
+.yarn/
+
+# Игнорировать сборочные артефакты
+dist/
+build/
+
+# Игнорировать файлы Firebase
+/firebase-config.js
+/firebase.json
+
+
+# Игнорировать локальные конфигурации и секреты
+.env
+*.env
+*.key
+*.pem
+*.secret
+.firebase
+.cursor
+
+# Игнорировать временные файлы и логи
+*.log
+*.tmp
+*.temp
+
+# Игнорировать файлы конфигурации IDE
+.idea/  # IntelliJ IDEA
+.vscode/  # VS Code (если настройки не нужны в репозитории)
+*.iml
+*.ipr
+*.iws
+
+# Игнорировать файлы кэша и сборки для веб-разработки
+*.min.js.map
+*.map
+.cache/
+
+# Игнорировать macOS файлы
+.DS_Store
+
+# Игнорировать Windows файлы
+Thumbs.db
+desktop.ini
