@@ -10,6 +10,12 @@ build/
 # Игнорировать файлы Firebase
 /firebase-config.js
 /firebase.json
+/firestore.rules
+/firestore.indexes.json
+.firebaserc
+.firebase/
+
+serviceAccountKey.json
 
 
 # Игнорировать локальные конфигурации и секреты

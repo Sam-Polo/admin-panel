@@ -62,9 +62,19 @@ async function loadObjects(user, isSuperuser) {
     try {
         let query = db.collection('sportobjects');
         
-        // если не суперпользователь, показываем только свои объекты
+        // если не суперпользователь, показываем только доступные объекты
         if (!isSuperuser) {
-            query = query.where('owner', '==', user.uid);
+            // получаем список доступных объектов из claims
+            const idTokenResult = await user.getIdTokenResult();
+            const objectIds = idTokenResult.claims.objectIds || [];
+            
+            if (objectIds.length === 0) {
+                objectsList.innerHTML = '<div class="empty">У вас нет доступных объектов</div>';
+                return;
+            }
+            
+            // фильтруем по ID объектов
+            query = query.where('__name__', 'in', objectIds);
         }
         
         const snapshot = await query.get();

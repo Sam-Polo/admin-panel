@@ -1,0 +1,17 @@
+{
+  "name": "admin-panel",
+  "version": "1.0.0",
+  "main": "admin.js",
+  "scripts": {
+    "list-users": "node list-users.js",
+    "set-claims": "node set-custom-claims.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  },
+  "devDependencies": {},
+  "description": ""
+}
