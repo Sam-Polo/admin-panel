@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // функция проверки роли суперпользователя
+    function isSuperuser() {
+      return request.auth != null && request.auth.token.superuser == true;
+    }
+    
+    // функция проверки роли модератора
+    function isModerator() {
+      return request.auth != null && request.auth.token.moderator == true;
+    }
+    
+    // функция проверки владельца объекта
+    function isOwner(objectId) {
+      return request.auth != null && 
+             resource.data.owner == request.auth.uid;
+    }
+    
+    // правила для коллекции sportobjects
+    match /sportobjects/{objectId} {
+      // чтение: суперпользователь или модератор-владелец
+      allow read: if isSuperuser() || 
+                    (isModerator() && isOwner(objectId));
+      
+      // создание: суперпользователь или модератор
+      allow create: if isSuperuser() || isModerator();
+      
+      // обновление: суперпользователь или модератор-владелец
+      allow update: if isSuperuser() || 
+                     (isModerator() && isOwner(objectId));
+      
+      // удаление: суперпользователь или модератор-владелец
+      allow delete: if isSuperuser() || 
+                     (isModerator() && isOwner(objectId));
+    }
+    
+    // правила для коллекции tags
+    match /tags/{tagId} {
+      // чтение: все авторизованные пользователи
+      allow read: if request.auth != null;
+      
+      // запись: только суперпользователь
+      allow write: if isSuperuser();
+    }
+  }
+} 
