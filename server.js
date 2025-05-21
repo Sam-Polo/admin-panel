@@ -12,12 +12,43 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// middleware для проверки токена
+async function verifyToken(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Требуется авторизация' });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Ошибка верификации токена:', error);
+        res.status(401).json({ error: 'Неверный токен' });
+    }
+}
+
 // получение списка пользователей
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', verifyToken, async (req, res) => {
   try {
+    console.log('Запрос на получение списка пользователей');
     const listUsersResult = await admin.auth().listUsers();
-    res.json(listUsersResult.users);
+    console.log('Получено пользователей:', listUsersResult.users.length);
+    console.log('Первый пользователь:', listUsersResult.users[0]?.email);
+    
+    const users = listUsersResult.users.map(user => ({
+      uid: user.uid,
+      email: user.email,
+      isAdmin: user.customClaims?.admin === true,
+      isModerator: user.customClaims?.moderator === true,
+      objectIds: user.customClaims?.objectIds || []
+    }));
+    
+    res.json(users);
   } catch (error) {
+    console.error('Ошибка при получении пользователей:', error);
     res.status(500).json({ error: error.message });
   }
 });

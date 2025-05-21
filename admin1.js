@@ -48,17 +48,18 @@ function initAdminPanel(user, isAdmin) {
             const targetPage = document.getElementById(`${page}-page`);
             if (targetPage) {
                 targetPage.classList.add('active');
+                console.log(`Страница ${page} активирована`);
+                
+                // загружаем данные страницы
+                if (page === 'objects') {
+                    console.log('Загрузка объектов...');
+                    loadObjects(user, isAdmin);
+                } else if (page === 'users' && isAdmin) {
+                    console.log('Загрузка пользователей...');
+                    loadUsers();
+                }
             } else {
                 console.error(`Не найдена страница: ${page}-page`);
-            }
-            
-            // загружаем данные страницы
-            if (page === 'objects') {
-                console.log('Загрузка объектов...');
-                loadObjects(user, isAdmin);
-            } else if (page === 'users' && isAdmin) {
-                console.log('Загрузка пользователей...');
-                loadUsers();
             }
         });
     });
@@ -146,60 +147,62 @@ async function loadObjects(user, isAdmin) {
 // загрузка пользователей
 async function loadUsers() {
     console.log('loadUsers вызван');
-    
-    const usersList = document.getElementById('users-list');
-    const tbody = usersList.querySelector('tbody');
-    
-    if (!tbody) {
-        console.error('Не найден элемент tbody в таблице пользователей');
-        return;
-    }
-    
-    tbody.innerHTML = '<tr><td colspan="3" class="loading">Загрузка...</td></tr>';
-    
     try {
-        // получаем список пользователей через API
-        const response = await fetch('http://localhost:3001/api/users');
+        console.log('Получение токена...');
+        // получаем текущий токен
+        const idToken = await auth.currentUser.getIdToken();
+        console.log('Токен получен:', idToken ? 'да' : 'нет');
+        
+        console.log('Отправка запроса к API...');
+        const response = await fetch('http://localhost:3001/api/users', {
+            headers: {
+                'Authorization': `Bearer ${idToken}`
+            }
+        });
+        console.log('Ответ получен, статус:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Ошибка ответа:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}, text: ${errorText}`);
+        }
+        
         const users = await response.json();
         console.log('Получено пользователей:', users.length);
         
-        if (users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="empty">Нет пользователей</td></tr>';
+        // обновляем таблицу
+        const tbody = document.querySelector('#users-list tbody');
+        if (!tbody) {
+            console.error('Не найден элемент tbody в таблице пользователей');
             return;
         }
         
-        // заполняем таблицу
-        tbody.innerHTML = ''; // очищаем таблицу
+        tbody.innerHTML = '';
         
         users.forEach(user => {
-            console.log('Обработка пользователя:', { uid: user.uid, email: user.email });
-            
-            const isAdmin = user.customClaims?.admin === true;
-            const isModerator = user.customClaims?.moderator === true;
-            
-            const row = document.createElement('tr');
-            row.innerHTML = `
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
                 <td>${user.email}</td>
                 <td>
-                    <select class="role-select" data-id="${user.uid}">
-                        <option value="moderator" ${isModerator ? 'selected' : ''}>Модератор</option>
-                        <option value="admin" ${isAdmin ? 'selected' : ''}>Админ</option>
+                    <select class="role-select" data-uid="${user.uid}">
+                        <option value="user" ${!user.isAdmin && !user.isModerator ? 'selected' : ''}>Пользователь</option>
+                        <option value="moderator" ${user.isModerator ? 'selected' : ''}>Модератор</option>
+                        <option value="admin" ${user.isAdmin ? 'selected' : ''}>Админ</option>
                     </select>
-                    <button class="btn-save" data-id="${user.uid}">Сохранить</button>
                 </td>
-                <td class="actions">
-                    <button class="btn-delete" data-id="${user.uid}">Удалить</button>
+                <td>
+                    <button class="delete-user" data-uid="${user.uid}">Удалить</button>
                 </td>
             `;
-            tbody.appendChild(row);
+            tbody.appendChild(tr);
         });
         
         // добавляем обработчики
         addUserHandlers();
         
     } catch (error) {
-        console.error('Ошибка загрузки пользователей:', error);
-        tbody.innerHTML = `<tr><td colspan="3" class="error">Ошибка загрузки: ${error.message}</td></tr>`;
+        console.error('Ошибка при загрузке пользователей:', error);
+        showError('Ошибка при загрузке пользователей: ' + error.message);
     }
 }
 

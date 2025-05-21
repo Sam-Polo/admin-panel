@@ -28,6 +28,11 @@ async function main() {
     moderator: true,
     objectIds: ['Byyt5SFx1Eis6OlHi7vS', 's7B90cbvS2zkGGgGUzEe'] // массив ID объектов, к которым есть доступ
   });
+
+  await setCustomClaims('lR3ZPUGzVMMJX5FmYsYsvkkZDyM2', {
+    moderator: true,
+    objectIds: ['cXu9141TnSIVLDKWQOfX']
+  });
 }
 
 main().then(() => process.exit(0)); 
