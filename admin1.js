@@ -71,8 +71,8 @@ function initAdminPanel(user, isAdmin) {
 }
 
 // загрузка объектов
-async function loadObjects(user, isAdmin) {
-    console.log('loadObjects вызван:', { user: user.email, isAdmin });
+async function loadObjects(user, isAdmin, retryCount = 0) {
+    console.log('loadObjects вызван:', { user: user.email, isAdmin, retryCount });
     
     const objectsList = document.getElementById('objects-list');
     if (!objectsList) {
@@ -105,7 +105,16 @@ async function loadObjects(user, isAdmin) {
             query = query.where('__name__', 'in', objectIds);
         }
         
-        const snapshot = await query.get();
+        // добавляем таймаут для запроса
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout')), 5000);
+        });
+        
+        const snapshot = await Promise.race([
+            query.get(),
+            timeoutPromise
+        ]);
+        
         console.log('Получено объектов:', snapshot.size);
         
         if (snapshot.empty) {
@@ -188,6 +197,17 @@ async function loadObjects(user, isAdmin) {
         
     } catch (error) {
         console.error('Ошибка загрузки объектов:', error);
+        
+        // если это ошибка таймаута или подключения, пробуем повторить
+        if ((error.message === 'Timeout' || error.message.includes('Could not reach Cloud Firestore backend')) && retryCount < 3) {
+            console.log(`Повторная попытка загрузки (${retryCount + 1}/3)...`);
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">Переподключение к серверу...</td></tr>';
+            
+            // ждем перед повторной попыткой
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return loadObjects(user, isAdmin, retryCount + 1);
+        }
+        
         tbody.innerHTML = `<tr><td colspan="4" class="error">Ошибка загрузки: ${error.message}</td></tr>`;
     }
 }
