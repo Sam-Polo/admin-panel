@@ -174,7 +174,7 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             
             tagsBtn.addEventListener('click', () => {
                 console.log('Управление тегами объекта:', doc.id);
-                // TODO: показать форму управления тегами объекта
+                window.location.href = `object-tags.html?id=${doc.id}`;
             });
             
             deleteBtn.addEventListener('click', async () => {
