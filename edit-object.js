@@ -1,17 +1,25 @@
-// получение id объекта из URL
+// получаем id объекта из URL
 const urlParams = new URLSearchParams(window.location.search);
 const objectId = urlParams.get('id');
 
-// элементы формы
-let editForm;
-let errorMessage;
-let cancelBtn;
+// инициализация элементов формы
+let editForm, errorMessage, cancelBtn;
+let originalData = {}; // храним оригинальные данные для сравнения
 
-// инициализация после загрузки DOM
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Инициализация страницы редактирования объекта');
+// маппинг названий полей на русский
+const fieldNames = {
+    name: 'Название',
+    description: 'Описание',
+    address: 'Адрес',
+    phone: 'Телефон',
+    location: 'Координаты'
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('Страница редактирования загружена, id объекта:', objectId);
     
-    editForm = document.getElementById('edit-object-form');
+    // инициализация элементов
+    editForm = document.getElementById('edit-form');
     errorMessage = document.getElementById('error-message');
     cancelBtn = document.getElementById('cancel-btn');
     
@@ -20,20 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
     
-    // загружаем данные объекта
-    loadObjectData();
-    
-    // обработчики событий
-    editForm.addEventListener('submit', handleSubmit);
-    cancelBtn.addEventListener('click', handleCancel);
-});
-
-// загрузка данных объекта
-async function loadObjectData() {
-    console.log('Загрузка данных объекта:', objectId);
-    
     try {
-        const doc = await db.collection('sportobjects').doc(objectId).get();
+        // загружаем данные объекта
+        const docRef = db.collection('sportobjects').doc(objectId);
+        const doc = await docRef.get();
         
         if (!doc.exists) {
             showError('Объект не найден');
@@ -41,27 +39,38 @@ async function loadObjectData() {
         }
         
         const data = doc.data();
-        console.log('Получены данные объекта:', data);
+        originalData = { ...data }; // сохраняем оригинальные данные
         
-        // заполняем форму
-        document.getElementById('object-name').value = data.name || '';
-        document.getElementById('object-description').value = data.description || '';
-        document.getElementById('object-address').value = data.address || '';
-        document.getElementById('object-phone').value = data.phone || '';
+        // обновляем заголовок
+        document.querySelector('h1').textContent = `Редактирование объекта "${data.name}"`;
         
-        // координаты
+        // заполняем форму данными
+        editForm.name.value = data.name || '';
+        editForm.description.value = data.description || '';
+        editForm.address.value = data.address || '';
+        editForm.phone.value = data.phone || '';
+        
+        // заполняем координаты
         if (data.location) {
-            document.getElementById('object-lat').value = data.location.latitude || '';
-            document.getElementById('object-lng').value = data.location.longitude || '';
+            editForm.latitude.value = data.location.latitude || '';
+            editForm.longitude.value = data.location.longitude || '';
         }
+        
+        console.log('Данные объекта загружены:', data);
+        
+        // добавляем обработчики событий после загрузки данных
+        editForm.addEventListener('submit', handleSubmit);
+        cancelBtn.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
         
     } catch (error) {
         console.error('Ошибка загрузки данных:', error);
         showError('Ошибка загрузки данных: ' + error.message);
     }
-}
+});
 
-// обработка отправки формы
+// обработчик отправки формы
 async function handleSubmit(e) {
     e.preventDefault();
     console.log('Отправка формы редактирования');
@@ -69,24 +78,58 @@ async function handleSubmit(e) {
     try {
         // собираем данные формы
         const formData = {
-            name: document.getElementById('object-name').value,
-            description: document.getElementById('object-description').value,
-            address: document.getElementById('object-address').value,
-            phone: document.getElementById('object-phone').value,
-            location: new firebase.firestore.GeoPoint(
-                parseFloat(document.getElementById('object-lat').value),
-                parseFloat(document.getElementById('object-lng').value)
-            )
+            name: editForm.name.value.trim(),
+            description: editForm.description.value.trim(),
+            address: editForm.address.value.trim(),
+            phone: editForm.phone.value.trim()
         };
         
-        console.log('Подготовленные данные:', formData);
+        // проверяем обязательные поля
+        if (!formData.name || !formData.address) {
+            showError('Название и адрес обязательны для заполнения');
+            return;
+        }
         
-        // обновляем объект
-        await db.collection('sportobjects').doc(objectId).update(formData);
-        console.log('Объект успешно обновлен');
+        // проверяем координаты
+        const latitude = parseFloat(editForm.latitude.value);
+        const longitude = parseFloat(editForm.longitude.value);
         
-        // возвращаемся на главную
-        window.location.href = 'index.html';
+        if (isNaN(latitude) || isNaN(longitude)) {
+            showError('Координаты должны быть числами');
+            return;
+        }
+        
+        // добавляем координаты в данные
+        formData.location = new firebase.firestore.GeoPoint(latitude, longitude);
+        
+        // проверяем, что данные изменились и не пустые
+        const changedData = {};
+        const changedFields = [];
+        
+        for (const [key, value] of Object.entries(formData)) {
+            if (key === 'location') {
+                if (originalData.location?.latitude !== latitude || 
+                    originalData.location?.longitude !== longitude) {
+                    changedData[key] = value;
+                    changedFields.push(fieldNames[key]);
+                }
+            } else if (value !== '' && originalData[key] !== value) {
+                changedData[key] = value;
+                changedFields.push(fieldNames[key]);
+            }
+        }
+        
+        if (changedFields.length === 0) {
+            showError('Нет изменений для сохранения');
+            return;
+        }
+        
+        // обновляем данные в БД
+        await db.collection('sportobjects').doc(objectId).update(changedData);
+        console.log('Данные обновлены:', changedData);
+        
+        // показываем информационное окно
+        showSuccessModal(changedFields);
         
     } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -94,17 +137,39 @@ async function handleSubmit(e) {
     }
 }
 
-// обработка отмены
-function handleCancel() {
-    console.log('Отмена редактирования');
-    window.location.href = 'index.html';
+// функция отображения ошибок
+function showError(message) {
+    console.error(message);
+    errorMessage.textContent = message;
+    errorMessage.classList.remove('hidden');
 }
 
-// показ ошибок
-function showError(message) {
-    console.error('Ошибка:', message);
-    errorMessage.textContent = message;
-    setTimeout(() => {
-        errorMessage.textContent = '';
-    }, 5000);
+// функция отображения информационного окна
+function showSuccessModal(changedFields) {
+    const modal = document.createElement('div');
+    modal.className = 'info-modal';
+    
+    const content = document.createElement('div');
+    content.className = 'info-modal-content';
+    
+    const title = document.createElement('h3');
+    title.textContent = 'Объект успешно изменён!';
+    
+    const message = document.createElement('p');
+    message.textContent = `Отредактированы поля: ${changedFields.join(', ')}`;
+    
+    const okButton = document.createElement('button');
+    okButton.className = 'btn-ok';
+    okButton.textContent = 'OK';
+    okButton.onclick = () => {
+        document.body.removeChild(modal);
+        window.location.href = 'index.html';
+    };
+    
+    content.appendChild(title);
+    content.appendChild(message);
+    content.appendChild(okButton);
+    modal.appendChild(content);
+    
+    document.body.appendChild(modal);
 } 

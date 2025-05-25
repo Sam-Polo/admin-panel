@@ -32,9 +32,13 @@ admin-panel/
 ### Коллекция sportobjects
 ```javascript
 {
-  name: string,      // название объекта
-  address: string,   // адрес
-  tags: string[],    // массив ID тегов
+  name: string,
+  description: string,      // название объекта
+  address: string,
+  phone: string,
+  location: geopoint,
+  photo-urls: array[string]   // адрес
+  tags: array[reference],    // массив ID тегов
   // другие поля объекта
 }
 ```
