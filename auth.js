@@ -35,7 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutBtn.addEventListener('click', async () => {
         try {
             await auth.signOut();
+            window.location.href = 'index.html'; // редирект на главную страницу
         } catch (error) {
+            console.error('Ошибка выхода:', error);
             showError('Ошибка выхода: ' + error.message);
         }
     });

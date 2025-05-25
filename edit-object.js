@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // добавляем обработчики событий после загрузки данных
         editForm.addEventListener('submit', handleSubmit);
         cancelBtn.addEventListener('click', () => {
-            window.location.href = 'index.html';
+            history.back();
         });
         
     } catch (error) {
@@ -128,8 +128,11 @@ async function handleSubmit(e) {
         await db.collection('sportobjects').doc(objectId).update(changedData);
         console.log('Данные обновлены:', changedData);
         
-        // показываем информационное окно
-        showSuccessModal(changedFields);
+        // сохраняем информацию об измененных полях в sessionStorage
+        sessionStorage.setItem('editedFields', JSON.stringify(changedFields));
+        
+        // переходим на главную страницу
+        window.location.href = 'index.html';
         
     } catch (error) {
         console.error('Ошибка сохранения:', error);
@@ -142,34 +145,4 @@ function showError(message) {
     console.error(message);
     errorMessage.textContent = message;
     errorMessage.classList.remove('hidden');
-}
-
-// функция отображения информационного окна
-function showSuccessModal(changedFields) {
-    const modal = document.createElement('div');
-    modal.className = 'info-modal';
-    
-    const content = document.createElement('div');
-    content.className = 'info-modal-content';
-    
-    const title = document.createElement('h3');
-    title.textContent = 'Объект успешно изменён!';
-    
-    const message = document.createElement('p');
-    message.textContent = `Отредактированы поля: ${changedFields.join(', ')}`;
-    
-    const okButton = document.createElement('button');
-    okButton.className = 'btn-ok';
-    okButton.textContent = 'OK';
-    okButton.onclick = () => {
-        document.body.removeChild(modal);
-        window.location.href = 'index.html';
-    };
-    
-    content.appendChild(title);
-    content.appendChild(message);
-    content.appendChild(okButton);
-    modal.appendChild(content);
-    
-    document.body.appendChild(modal);
 } 

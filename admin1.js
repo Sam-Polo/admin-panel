@@ -86,8 +86,6 @@ async function loadObjects(user, isAdmin) {
         return;
     }
     
-    tbody.innerHTML = '<tr><td colspan="4" class="loading">Загрузка...</td></tr>';
-    
     try {
         let query = db.collection('sportobjects');
         console.log('Начальный запрос к Firestore');
@@ -316,12 +314,6 @@ function addUserHandlers() {
     });
 }
 
-// обработчик добавления объекта
-document.getElementById('add-object-btn').addEventListener('click', () => {
-    // TODO: показать форму добавления объекта
-    console.log('Добавление нового объекта');
-});
-
 // модальное окно для пользователей
 let currentUserId = null;
 
@@ -415,4 +407,67 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
     } catch (error) {
         alert('Ошибка: ' + error.message);
     }
+});
+
+// функция проверки sessionStorage
+function checkSessionStorage() {
+    console.log('Проверка sessionStorage...');
+    const editedFields = sessionStorage.getItem('editedFields');
+    
+    console.log('Состояние:', { editedFields });
+    
+    if (editedFields) {
+        console.log('Найдены измененные поля:', editedFields);
+        showSuccessModal(JSON.parse(editedFields));
+    }
+}
+
+// функция отображения информационного окна
+function showSuccessModal(changedFields) {
+    console.log('Показ информационного окна:', changedFields);
+    
+    // удаляем существующее окно, если оно есть
+    const existingModal = document.querySelector('.info-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'info-modal';
+    
+    const content = document.createElement('div');
+    content.className = 'info-modal-content';
+    
+    const title = document.createElement('h3');
+    title.textContent = 'Объект успешно изменён!';
+    
+    const message = document.createElement('p');
+    message.textContent = `Отредактированы поля: ${changedFields.join(', ')}`;
+    
+    const okButton = document.createElement('button');
+    okButton.className = 'btn-ok';
+    okButton.textContent = 'OK';
+    okButton.onclick = () => {
+        modal.remove();
+        sessionStorage.removeItem('editedFields');
+    };
+    
+    content.appendChild(title);
+    content.appendChild(message);
+    content.appendChild(okButton);
+    modal.appendChild(content);
+    
+    document.body.appendChild(modal);
+}
+
+// проверяем при загрузке страницы
+window.addEventListener('load', () => {
+    console.log('Страница полностью загружена');
+    checkSessionStorage();
+});
+
+// проверяем при загрузке DOM
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM загружен');
+    localStorage.setItem('pageReady', 'false');
 }); 
