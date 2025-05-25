@@ -196,23 +196,18 @@ async function loadObjects(user, isAdmin) {
 async function loadUsers() {
     console.log('loadUsers вызван');
     try {
-        console.log('Получение токена...');
-        // получаем текущий токен
-        const idToken = await auth.currentUser.getIdToken();
-        console.log('Токен получен:', idToken ? 'да' : 'нет');
+        // получаем токен для авторизации
+        const token = await auth.currentUser.getIdToken();
         
-        console.log('Отправка запроса к API...');
+        // получаем список пользователей через API
         const response = await fetch('http://localhost:3001/api/users', {
             headers: {
-                'Authorization': `Bearer ${idToken}`
+                'Authorization': `Bearer ${token}`
             }
         });
-        console.log('Ответ получен, статус:', response.status);
         
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Ошибка ответа:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}, text: ${errorText}`);
+            throw new Error('Ошибка получения списка пользователей');
         }
         
         const users = await response.json();
@@ -231,14 +226,10 @@ async function loadUsers() {
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${user.email}</td>
+                <td>${user.isAdmin ? 'Админ' : 'Модератор'}</td>
+                <td>${user.isAdmin ? 'ВСЕ' : (user.objectIds ? user.objectIds.length : 0) + ' объектов'}</td>
                 <td>
-                    <select class="role-select" data-uid="${user.uid}">
-                        <option value="user" ${!user.isAdmin && !user.isModerator ? 'selected' : ''}>Пользователь</option>
-                        <option value="moderator" ${user.isModerator ? 'selected' : ''}>Модератор</option>
-                        <option value="admin" ${user.isAdmin ? 'selected' : ''}>Админ</option>
-                    </select>
-                </td>
-                <td>
+                    <button class="edit-user" data-uid="${user.uid}">Изменить</button>
                     <button class="delete-user" data-uid="${user.uid}">Удалить</button>
                 </td>
             `;
@@ -261,34 +252,11 @@ function addUserHandlers() {
         showUserModal();
     });
     
-    // обработчики сохранения роли
-    document.querySelectorAll('.role-select').forEach(select => {
-        select.addEventListener('change', async () => {
-            const userId = select.dataset.uid;
-            const newRole = select.value;
-            
-            try {
-                // обновляем роль через API
-                const response = await fetch(`http://localhost:3001/api/users/${userId}/role`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        role: newRole
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Ошибка обновления роли');
-                }
-                
-                alert('Роль успешно обновлена');
-                loadUsers(); // перезагружаем список
-                
-            } catch (error) {
-                alert('Ошибка обновления роли: ' + error.message);
-            }
+    // обработчики редактирования
+    document.querySelectorAll('.edit-user').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const userId = btn.dataset.uid;
+            showUserModal(userId);
         });
     });
     
@@ -297,8 +265,12 @@ function addUserHandlers() {
         btn.addEventListener('click', async () => {
             if (confirm('Удалить пользователя?')) {
                 try {
+                    const token = await auth.currentUser.getIdToken();
                     const response = await fetch(`http://localhost:3001/api/users/${btn.dataset.uid}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
                     });
                     
                     if (!response.ok) {
@@ -314,27 +286,215 @@ function addUserHandlers() {
     });
 }
 
+// загрузка объектов для выбора
+async function loadObjectsForSelection() {
+    const form = document.getElementById('user-form');
+    if (!form) {
+        console.error('Форма не найдена');
+        return;
+    }
+
+    // проверяем существование контейнера
+    let objectIdsContainer = document.getElementById('object-ids-container');
+    if (!objectIdsContainer) {
+        // создаем контейнер, если его нет
+        objectIdsContainer = document.createElement('div');
+        objectIdsContainer.id = 'object-ids-container';
+        objectIdsContainer.innerHTML = `
+            <label>Доступные объекты:</label>
+            <div class="search-container">
+                <input type="text" id="object-search" placeholder="Поиск объектов...">
+            </div>
+            <div id="object-ids-list" class="objects-list"></div>
+        `;
+        form.insertBefore(objectIdsContainer, form.querySelector('.modal-buttons'));
+    }
+    
+    try {
+        const objects = await db.collection('sportobjects').get();
+        
+        // создаем список объектов
+        const objectsList = document.createElement('div');
+        objectsList.id = 'object-ids-list';
+        objectsList.className = 'objects-list';
+        
+        objects.forEach(doc => {
+            const data = doc.data();
+            const div = document.createElement('div');
+            div.className = 'object-item';
+            div.innerHTML = `
+                <input type="checkbox" id="obj-${doc.id}" value="${doc.id}">
+                <label for="obj-${doc.id}">${data.name}</label>
+            `;
+            objectsList.appendChild(div);
+        });
+
+        // очищаем контейнер и добавляем новый список
+        const existingList = objectIdsContainer.querySelector('#object-ids-list');
+        if (existingList) {
+            existingList.replaceWith(objectsList);
+        } else {
+            objectIdsContainer.appendChild(objectsList);
+        }
+
+        // добавляем поиск
+        const searchInput = objectIdsContainer.querySelector('#object-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const searchText = e.target.value.toLowerCase();
+                document.querySelectorAll('.object-item').forEach(item => {
+                    const label = item.querySelector('label').textContent.toLowerCase();
+                    item.style.display = label.includes(searchText) ? '' : 'none';
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки объектов:', error);
+    }
+}
+
 // модальное окно для пользователей
 let currentUserId = null;
+let currentUserObjects = []; // сохраняем текущие объекты пользователя
 
-function showUserModal(userId = null) {
+async function showUserModal(userId = null) {
     currentUserId = userId;
+    currentUserObjects = []; // сбрасываем список объектов
+    
     const modal = document.getElementById('user-modal');
     const title = document.getElementById('modal-title');
     const form = document.getElementById('user-form');
-    const objectIdsContainer = document.getElementById('object-ids-container');
+    
+    // проверяем существование элементов
+    if (!modal || !title || !form) {
+        console.error('Не найдены необходимые элементы модального окна');
+        return;
+    }
     
     // очищаем форму
     form.reset();
     
+    // восстанавливаем структуру формы
+    form.innerHTML = `
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" id="user-email" placeholder="Email" required>
+        </div>
+        <div class="form-group">
+            <label>Роль:</label>
+            <select id="user-role" required>
+                <option value="moderator">Модератор</option>
+                <option value="admin">Админ</option>
+            </select>
+        </div>
+        <div id="object-ids-container">
+            <label>Доступные объекты:</label>
+            <div class="search-container">
+                <input type="text" id="object-search" placeholder="Поиск объектов...">
+            </div>
+            <div id="object-ids-list" class="objects-list"></div>
+        </div>
+        <div class="modal-buttons">
+            <button type="submit" class="btn-primary">Сохранить</button>
+            <button type="button" class="btn-cancel" onclick="closeUserModal()">Отмена</button>
+        </div>
+    `;
+    
+    // добавляем обработчик изменения роли
+    const roleSelect = form.querySelector('#user-role');
+    roleSelect.addEventListener('change', async (e) => {
+        const objectIdsContainer = form.querySelector('#object-ids-container');
+        
+        if (e.target.value === 'admin') {
+            objectIdsContainer.innerHTML = '<div class="all-objects">ВСЕ</div>';
+        } else {
+            // восстанавливаем структуру контейнера объектов
+            objectIdsContainer.innerHTML = `
+                <label>Доступные объекты:</label>
+                <div class="search-container">
+                    <input type="text" id="object-search" placeholder="Поиск объектов...">
+                </div>
+                <div id="object-ids-list" class="objects-list"></div>
+            `;
+            
+            // загружаем объекты и отмечаем только те, что были у пользователя
+            const objects = await db.collection('sportobjects').get();
+            const objectsList = objectIdsContainer.querySelector('#object-ids-list');
+            
+            objects.forEach(doc => {
+                const data = doc.data();
+                const div = document.createElement('div');
+                div.className = 'object-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="obj-${doc.id}" value="${doc.id}" 
+                        ${currentUserObjects.includes(doc.id) ? 'checked' : ''}>
+                    <label for="obj-${doc.id}">${data.name}</label>
+                `;
+                objectsList.appendChild(div);
+            });
+            
+            // добавляем поиск
+            const searchInput = objectIdsContainer.querySelector('#object-search');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const searchText = e.target.value.toLowerCase();
+                    document.querySelectorAll('.object-item').forEach(item => {
+                        const label = item.querySelector('label').textContent.toLowerCase();
+                        item.style.display = label.includes(searchText) ? '' : 'none';
+                    });
+                });
+            }
+        }
+    });
+    
     if (userId) {
         // режим редактирования
         title.textContent = 'Редактировать пользователя';
-        // TODO: загрузить данные пользователя
+        
+        // получаем данные пользователя через API
+        const token = await auth.currentUser.getIdToken();
+        const response = await fetch(`http://localhost:3001/api/users/${userId}/claims`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Ошибка получения данных пользователя');
+        }
+        
+        const userData = await response.json();
+        
+        // сохраняем текущие объекты пользователя
+        currentUserObjects = userData.customClaims?.objectIds || [];
+        
+        // отображаем email как текст
+        const emailContainer = form.querySelector('.form-group');
+        emailContainer.innerHTML = `
+            <label>Email:</label>
+            <div class="user-email-display">${userData.email}</div>
+            <input type="hidden" id="user-email" value="${userData.email}">
+        `;
+        
+        // устанавливаем роль
+        roleSelect.value = userData.customClaims?.admin ? 'admin' : 'moderator';
+        
+        // загружаем объекты
+        if (userData.customClaims?.admin) {
+            const objectIdsContainer = form.querySelector('#object-ids-container');
+            objectIdsContainer.innerHTML = '<div class="all-objects">ВСЕ</div>';
+        } else {
+            await loadObjectsForSelection();
+            // отмечаем выбранные объекты
+            currentUserObjects.forEach(id => {
+                const checkbox = form.querySelector(`#obj-${id}`);
+                if (checkbox) checkbox.checked = true;
+            });
+        }
     } else {
         // режим добавления
         title.textContent = 'Добавить пользователя';
-        objectIdsContainer.classList.add('hidden');
+        await loadObjectsForSelection();
     }
     
     modal.classList.remove('hidden');
@@ -346,59 +506,125 @@ function closeUserModal() {
     currentUserId = null;
 }
 
+// флаг для включения/отключения сохранения информации о пользователях
+const SAVE_USERS_TO_FILE = true;
+
+// функция для сохранения информации о пользователе в файл
+async function saveUserInfoToFile(userData) {
+    if (!SAVE_USERS_TO_FILE) return;
+    
+    try {
+        const userInfo = {
+            email: userData.email,
+            password: userData.password,
+            uid: userData.uid,
+            role: userData.role,
+            objectIds: userData.objectIds || [],
+            createdAt: new Date().toISOString()
+        };
+        
+        const response = await fetch('http://localhost:3001/api/users/save-info', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(userInfo)
+        });
+        
+        if (!response.ok) {
+            console.error('Ошибка сохранения информации о пользователе:', await response.text());
+        }
+    } catch (error) {
+        console.error('Ошибка при сохранении информации о пользователе:', error);
+    }
+}
+
 // обработчик формы пользователя
 document.getElementById('user-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const email = document.getElementById('user-email').value;
-    const role = document.getElementById('user-role').value;
+    const form = e.target;
+    const emailInput = form.querySelector('#user-email');
+    const roleSelect = form.querySelector('#user-role');
+    
+    if (!emailInput || !roleSelect) {
+        alert('Не найдены необходимые элементы формы');
+        return;
+    }
+    
+    const email = emailInput.value;
+    const role = roleSelect.value;
+    
+    if (!email || !role) {
+        alert('Необходимо указать email и роль');
+        return;
+    }
     
     try {
+        // получаем токен для авторизации
+        const token = await auth.currentUser.getIdToken();
+        
         if (currentUserId) {
             // обновление существующего пользователя
-            const response = await fetch(`http://localhost:3001/api/users/${currentUserId}/role`, {
-                method: 'PUT',
+            const claims = role === 'admin' ? 
+                { admin: true } : 
+                { 
+                    moderator: true,
+                    objectIds: Array.from(form.querySelectorAll('#object-ids-list input:checked'))
+                        .map(input => input.value)
+                };
+            
+            // обновляем custom claims через API
+            const response = await fetch('http://localhost:3001/api/users/claims', {
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    role,
-                    objectIds: role === 'moderator' ? 
-                        Array.from(document.querySelectorAll('#object-ids-list input:checked'))
-                            .map(input => input.value) : 
-                        undefined
+                    uid: currentUserId,
+                    claims
                 })
             });
             
             if (!response.ok) {
-                throw new Error('Ошибка обновления пользователя');
+                const error = await response.json();
+                throw new Error(error.error || 'Ошибка обновления прав доступа');
             }
             
         } else {
             // создание нового пользователя
-            const password = Math.random().toString(36).slice(-8); // генерируем случайный пароль
-            
+            const objectIds = role === 'admin' ? [] : 
+                Array.from(form.querySelectorAll('#object-ids-list input:checked'))
+                    .map(input => input.value);
+
             const response = await fetch('http://localhost:3001/api/users', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     email,
-                    password,
                     role,
-                    objectIds: role === 'moderator' ? 
-                        Array.from(document.querySelectorAll('#object-ids-list input:checked'))
-                            .map(input => input.value) : 
-                        undefined
+                    objectIds
                 })
             });
-            
+
             if (!response.ok) {
-                throw new Error('Ошибка создания пользователя');
+                const error = await response.json();
+                throw new Error(error.error || 'Ошибка создания пользователя');
             }
+
+            const data = await response.json();
+            alert(`Пользователь создан. Пароль: ${data.password}`);
             
-            alert(`Пользователь создан. Пароль: ${password}`);
+            // сохраняем информацию о пользователе
+            await saveUserInfoToFile({
+                ...data,
+                role,
+                objectIds
+            });
         }
         
         closeUserModal();

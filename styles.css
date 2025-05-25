@@ -514,4 +514,71 @@ header {
 
 .info-modal .btn-ok:hover {
     background-color: #45a049;
+}
+
+.objects-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.object-item {
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.object-item:hover {
+    background-color: #f5f5f5;
+}
+
+.search-container {
+    margin-bottom: 10px;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.all-objects {
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.edit-user, .delete-user {
+    padding: 5px 10px;
+    margin: 0 5px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    width: 80px;
+}
+
+.edit-user {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.delete-user {
+    background-color: #f44336;
+    color: white;
+}
+
+.edit-user:hover {
+    background-color: #45a049;
+}
+
+.delete-user:hover {
+    background-color: #da190b;
 } 

@@ -87,6 +87,7 @@
                             <tr>
                                 <th>Email</th>
                                 <th>Роль</th>
+                                <th>Объекты</th>
                                 <th>Действия</th>
                             </tr>
                         </thead>
@@ -107,9 +108,12 @@
                     <option value="moderator">Модератор</option>
                     <option value="admin">Админ</option>
                 </select>
-                <div id="object-ids-container" class="hidden">
+                <div id="object-ids-container">
                     <label>Доступные объекты:</label>
-                    <div id="object-ids-list"></div>
+                    <div class="search-container">
+                        <input type="text" id="object-search" placeholder="Поиск объектов...">
+                    </div>
+                    <div id="object-ids-list" class="objects-list"></div>
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="btn-primary">Сохранить</button>

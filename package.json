@@ -1,10 +1,11 @@
 {
-  "name": "admin-panel",
+  "name": "sportyugra-admin-api",
   "version": "1.0.0",
+  "description": "API для панели управления SportYugra",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "concurrently \"http-server\" \"npm start\"",
+    "dev": "concurrently \"http-server -p 8080\" \"nodemon server.js\"",
     "list-users": "node list-users.js",
     "set-claims": "node set-custom-claims.js"
   },
@@ -12,12 +13,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "firebase-admin": "^12.0.0"
-  },
-  "devDependencies": {
+    "firebase-admin": "^11.11.0",
+    "cors": "^2.8.5",
+    "http-server": "^14.1.1",
     "concurrently": "^8.2.2"
   },
-  "description": ""
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
 }
