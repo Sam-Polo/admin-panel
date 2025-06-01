@@ -49,7 +49,7 @@ const TagTree = ({ tags, checkedKeys, onCheck }) => {
             <antd.Tree
                 checkable
                 defaultExpandAll
-                checkedKeys={checkedKeys.checked}
+                checkedKeys={checkedKeys}
                 onCheck={onCheck}
                 treeData={treeData}
                 checkStrictly={true}
@@ -59,23 +59,44 @@ const TagTree = ({ tags, checkedKeys, onCheck }) => {
 };
 
 // компонент для отображения выбранных тегов
-const SelectedTags = ({ tags, selectedTagIds }) => {
-    // убеждаемся, что selectedIds это массив
-    const selectedIds = Array.isArray(selectedTagIds?.checked) ? selectedTagIds.checked : [];
-    const selectedTags = tags.filter(tag => selectedIds.includes(tag.id));
+const SelectedTags = ({ tags, currentTags, selectedToAdd, selectedToRemove }) => {
+    // получаем теги для добавления
+    const tagsToAdd = tags.filter(tag => 
+        selectedToAdd.includes(tag.id) && !currentTags.includes(tag.id)
+    );
+    
+    // получаем теги для удаления
+    const tagsToRemove = tags.filter(tag => 
+        selectedToRemove.includes(tag.id) && currentTags.includes(tag.id)
+    );
     
     return (
         <div className="selected-tags">
-            <h3>Выбранные теги:</h3>
-            {selectedTags.length > 0 ? (
-                <ul>
-                    {selectedTags.map(tag => (
-                        <li key={tag.id}>{tag.name}</li>
-                    ))}
-                </ul>
-            ) : (
-                <p>Нет выбранных тегов</p>
-            )}
+            <div className="tags-section">
+                <h3>Добавить теги:</h3>
+                {tagsToAdd.length > 0 ? (
+                    <ul>
+                        {tagsToAdd.map(tag => (
+                            <li key={tag.id}>{tag.name}</li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p>Нет тегов для добавления</p>
+                )}
+            </div>
+            
+            <div className="tags-section">
+                <h3>Удалить теги:</h3>
+                {tagsToRemove.length > 0 ? (
+                    <ul>
+                        {tagsToRemove.map(tag => (
+                            <li key={tag.id}>{tag.name}</li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p>Нет тегов для удаления</p>
+                )}
+            </div>
         </div>
     );
 };
@@ -83,8 +104,9 @@ const SelectedTags = ({ tags, selectedTagIds }) => {
 // основной компонент страницы
 const ObjectTagsPage = () => {
     const [tags, setTags] = React.useState([]);
-    const [objectTags, setObjectTags] = React.useState([]);
-    const [selectedTags, setSelectedTags] = React.useState({ checked: [], halfChecked: [] });
+    const [currentTags, setCurrentTags] = React.useState([]); // текущие теги объекта
+    const [selectedToAdd, setSelectedToAdd] = React.useState([]); // теги для добавления
+    const [selectedToRemove, setSelectedToRemove] = React.useState([]); // теги для удаления
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
     const [objectName, setObjectName] = React.useState('');
@@ -111,8 +133,26 @@ const ObjectTagsPage = () => {
                 const objectDoc = await db.collection('sportobjects').doc(objectId).get();
                 const objectData = objectDoc.data();
                 const currentTags = objectData.tags || [];
-                setObjectTags(currentTags);
-                setSelectedTags({ checked: currentTags, halfChecked: [] });
+                
+                // преобразуем ссылки в ID тегов для работы с чекбоксами
+                const currentTagIds = currentTags.map(tagRef => {
+                    // если это уже reference, получаем id из path
+                    if (tagRef && tagRef.path) {
+                        return tagRef.path.split('/').pop();
+                    }
+                    // если это строка, получаем id из последней части
+                    if (typeof tagRef === 'string') {
+                        return tagRef.split('/').pop();
+                    }
+                    // если это DocumentReference, получаем id
+                    if (tagRef && tagRef.id) {
+                        return tagRef.id;
+                    }
+                    console.error('Неизвестный формат тега:', tagRef);
+                    return null;
+                }).filter(Boolean); // удаляем null значения
+                
+                setCurrentTags(currentTagIds);
                 setObjectName(objectData.name || '');
 
                 // получаем email текущего пользователя
@@ -135,31 +175,98 @@ const ObjectTagsPage = () => {
     // обработчик изменения выбранных тегов
     const handleCheck = (checkedKeys) => {
         console.log('handleCheck вызван с:', checkedKeys);
-        setSelectedTags(checkedKeys);
+        
+        // получаем массив выбранных ключей
+        const checked = Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked || [];
+        
+        // определяем, какие теги добавляются, а какие удаляются
+        const newSelectedToAdd = checked.filter(key => !currentTags.includes(key));
+        const newSelectedToRemove = currentTags.filter(key => !checked.includes(key));
+        
+        setSelectedToAdd(newSelectedToAdd);
+        setSelectedToRemove(newSelectedToRemove);
     };
 
     // обработчик сохранения тегов
     const handleSave = async () => {
         try {
+            // формируем новый список тегов как ссылок на документы
+            const newTags = [
+                // сохраняем существующие теги как reference
+                ...currentTags
+                    .filter(tag => !selectedToRemove.includes(tag))
+                    .map(tagId => db.doc(`tags/${tagId}`)),
+                // добавляем новые теги как reference
+                ...selectedToAdd.map(tagId => db.doc(`tags/${tagId}`))
+            ];
+            
             // обновляем теги объекта в Firestore
             await db.collection('sportobjects').doc(objectId).update({
-                tags: selectedTags.checked || []
+                tags: newTags
             });
             
             // обновляем локальное состояние
-            setObjectTags(selectedTags.checked || []);
+            setCurrentTags(newTags.map(ref => ref.path.split('/').pop()));
+            setSelectedToAdd([]);
+            setSelectedToRemove([]);
             
-            // показываем уведомление с выбранными тегами
-            const selectedTagNames = tags
-                .filter(tag => (selectedTags.checked || []).includes(tag.id))
-                .map(tag => tag.name)
-                .join(', ');
+            // показываем модальное окно с результатами
+            const addedTags = tags
+                .filter(tag => selectedToAdd.includes(tag.id))
+                .map(tag => tag.name);
+                
+            const removedTags = tags
+                .filter(tag => selectedToRemove.includes(tag.id))
+                .map(tag => tag.name);
             
-            antd.message.info(`Выбраны теги: ${selectedTagNames}`);
+            showSuccessModal({
+                added: addedTags,
+                removed: removedTags
+            });
+            
         } catch (err) {
             console.error('Ошибка сохранения тегов:', err);
             antd.message.error('Ошибка сохранения тегов: ' + err.message);
         }
+    };
+
+    // функция отображения информационного окна
+    const showSuccessModal = (changes) => {
+        const modal = document.createElement('div');
+        modal.className = 'info-modal';
+        
+        const content = document.createElement('div');
+        content.className = 'info-modal-content';
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Теги успешно обновлены!';
+        
+        const message = document.createElement('div');
+        message.className = 'changes-info';
+        
+        if (changes.added.length > 0) {
+            const addedText = document.createElement('p');
+            addedText.textContent = `Добавлены теги: ${changes.added.join(', ')}`;
+            message.appendChild(addedText);
+        }
+        
+        if (changes.removed.length > 0) {
+            const removedText = document.createElement('p');
+            removedText.textContent = `Удалены теги: ${changes.removed.join(', ')}`;
+            message.appendChild(removedText);
+        }
+        
+        const okButton = document.createElement('button');
+        okButton.className = 'btn-ok';
+        okButton.textContent = 'OK';
+        okButton.onclick = () => modal.remove();
+        
+        content.appendChild(title);
+        content.appendChild(message);
+        content.appendChild(okButton);
+        modal.appendChild(content);
+        
+        document.body.appendChild(modal);
     };
 
     if (loading) {
@@ -199,14 +306,16 @@ const ObjectTagsPage = () => {
                         <div style={{ flex: 1 }}>
                             <TagTree 
                                 tags={tags}
-                                checkedKeys={selectedTags}
+                                checkedKeys={[...currentTags, ...selectedToAdd].filter(key => !selectedToRemove.includes(key))}
                                 onCheck={handleCheck}
                             />
                         </div>
                         <div style={{ width: '300px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
                             <SelectedTags 
                                 tags={tags}
-                                selectedTagIds={selectedTags}
+                                currentTags={currentTags}
+                                selectedToAdd={selectedToAdd}
+                                selectedToRemove={selectedToRemove}
                             />
                         </div>
                     </div>
