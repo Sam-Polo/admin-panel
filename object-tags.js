@@ -126,7 +126,7 @@ const SelectedTags = ({ tags, currentTags, selectedToAdd, selectedToRemove }) =>
                         ))}
                     </ul>
                 ) : (
-                    <p>Нет тегов для добавления</p>
+                    <p>Теги для добавления не выбраны</p>
                 )}
             </div>
             
@@ -139,7 +139,7 @@ const SelectedTags = ({ tags, currentTags, selectedToAdd, selectedToRemove }) =>
                         ))}
                     </ul>
                 ) : (
-                    <p>Нет тегов для удаления</p>
+                    <p>Теги для удаления не выбраны</p>
                 )}
             </div>
         </div>
@@ -422,7 +422,7 @@ const ObjectTagsPage = () => {
                 </div>
                 <div className="header-right">
                     <span className="user-email">{userEmail}</span>
-                    <button onClick={() => window.history.back()} style={{ color: 'white' }}>Назад</button>
+                    <button onClick={() => window.history.back()} className="back-btn">Назад</button>
                 </div>
             </header>
 
@@ -464,7 +464,7 @@ const ObjectTagsPage = () => {
                                     onCheck={handleCheck}
                                 />
                             </div>
-                            <div style={{ width: '300px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
+                            <div style={{ width: '300px', padding: '20px', background: 'white', borderRadius: '8px' }}>
                                 <SelectedTags 
                                     tags={tags}
                                     currentTags={currentTags}

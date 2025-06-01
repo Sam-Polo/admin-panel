@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SportYugra Admin</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" defer></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js" defer></script>
@@ -16,9 +18,18 @@
         <div class="auth-box">
             <h1>SportYugra Admin</h1>
             <form id="login-form">
-                <input type="email" id="email" placeholder="Email" required>
-                <input type="password" id="password" placeholder="Пароль" required>
-                <button type="submit">Войти</button>
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="email" placeholder="Email" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" placeholder="Пароль" required>
+                </div>
+                <button type="submit">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Войти
+                </button>
             </form>
             <div id="error-message" class="error"></div>
         </div>
@@ -71,7 +82,7 @@
                     <td class="actions">
                         <button class="btn-edit" data-id="">Редактировать</button>
                         <button class="btn-tags" data-id="">Теги объекта</button>
-                        <button class="btn-delete" data-id="">Удалить</button>
+                        <button class="btn-delete" data-id=""><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>
             </template>

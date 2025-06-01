@@ -162,6 +162,11 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             tagsBtn.dataset.id = doc.id;
             deleteBtn.dataset.id = doc.id;
             
+            // скрываем кнопку удаления для модераторов
+            if (!isAdmin) {
+                deleteBtn.style.display = 'none';
+            }
+            
             // добавляем обработчики сразу к клонированным кнопкам
             editBtn.addEventListener('click', (e) => {
                 console.log('Клик по кнопке редактирования:', {
@@ -178,7 +183,7 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             });
             
             deleteBtn.addEventListener('click', async () => {
-                if (confirm('Удалить объект?')) {
+                if (confirm(`Удалить объект "${data.name}"?`)) {
                     try {
                         await db.collection('sportobjects').doc(doc.id).delete();
                         loadObjects(user, isAdmin); // перезагружаем список
