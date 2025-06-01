@@ -26,7 +26,18 @@ const TagTree = ({ tags, checkedKeys, onCheck }) => {
             }
         });
 
-        return rootNodes;
+        // сортируем узлы рекурсивно
+        const sortNodes = (nodes) => {
+            nodes.sort((a, b) => a.name.localeCompare(b.name));
+            nodes.forEach(node => {
+                if (node.children.length > 0) {
+                    sortNodes(node.children);
+                }
+            });
+            return nodes;
+        };
+
+        return sortNodes(rootNodes);
     };
 
     // рекурсивно создаем дерево для Ant Design Tree
@@ -121,8 +132,10 @@ const ObjectTagsPage = () => {
             try {
                 setLoading(true);
                 
-                // загружаем все теги
-                const tagsSnapshot = await db.collection('tags').get();
+                // загружаем все теги с сортировкой по имени
+                const tagsSnapshot = await db.collection('tags')
+                    .orderBy('name')
+                    .get();
                 const tagsData = tagsSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
