@@ -142,6 +142,12 @@ app.delete('/api/users/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
     await admin.auth().deleteUser(uid);
+    
+    // удаляем пользователя из users_info.json
+    const users = await readUsersInfo();
+    const updatedUsers = users.filter(user => user.uid !== uid);
+    await saveUsersInfo(updatedUsers);
+    
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });

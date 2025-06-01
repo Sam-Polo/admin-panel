@@ -183,7 +183,8 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             });
             
             deleteBtn.addEventListener('click', async () => {
-                if (confirm(`Удалить объект "${data.name}"?`)) {
+                const objectName = deleteBtn.closest('tr').querySelector('.object-name').textContent;
+                if (confirm(`Удалить объект "${objectName}"?`)) {
                     try {
                         await db.collection('sportobjects').doc(doc.id).delete();
                         loadObjects(user, isAdmin); // перезагружаем список
@@ -252,7 +253,7 @@ async function loadUsers() {
             tr.innerHTML = `
                 <td>${user.email}</td>
                 <td>${user.isAdmin ? 'Админ' : 'Модератор'}</td>
-                <td>${user.isAdmin ? 'ВСЕ' : (user.objectIds ? user.objectIds.length : 0) + ' объектов'}</td>
+                <td>${user.isAdmin ? 'ВСЕ' : (user.objectIds ? user.objectIds.length : 0) + ' об.'}</td>
                 <td>
                     <button class="edit-user" data-uid="${user.uid}">Изменить</button>
                     <button class="delete-user" data-uid="${user.uid}">Удалить</button>
@@ -288,7 +289,8 @@ function addUserHandlers() {
     // обработчики удаления
     document.querySelectorAll('.delete-user').forEach(btn => {
         btn.addEventListener('click', async () => {
-            if (confirm('Удалить пользователя?')) {
+            const email = btn.closest('tr').querySelector('td:first-child').textContent;
+            if (confirm(`Удалить пользователя ${email}?`)) {
                 try {
                     const token = await auth.currentUser.getIdToken();
                     const response = await fetch(`http://localhost:3001/api/users/${btn.dataset.uid}`, {
@@ -617,6 +619,17 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
                 throw new Error(error.error || 'Ошибка обновления прав доступа');
             }
             
+            // сохраняем информацию о пользователе
+            await saveUserInfoToFile({
+                uid: currentUserId,
+                email: email,
+                role: role,
+                objectIds: claims.objectIds || []
+            });
+
+            // обновляем данные в таблице
+            loadUsers(); // перезагружаем список
+            
         } else {
             // создание нового пользователя
             const objectIds = role === 'admin' ? [] : 
@@ -647,6 +660,7 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
             // сохраняем информацию о пользователе
             await saveUserInfoToFile({
                 ...data,
+                email: email,
                 role,
                 objectIds
             });

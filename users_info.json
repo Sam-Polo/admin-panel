@@ -1,12 +1,101 @@
 [
   {
-    "password": "cwn31y7c",
-    "uid": "qq8KdApVaNhGNsEp2MVw5DFRsrI2",
+    "email": "reforma@admin.ru",
+    "password": "p38drmy7",
+    "uid": "w2FKAEJE3PX6XUyyA8huxE0vVq52",
     "role": "moderator",
     "objectIds": [
-      "YF2ITFLhsGmxqxZrNTVH",
+      "Byyt5SFx1Eis6OlHi7vS",
+      "s7B90cbvS2zkGGgGUzEe"
+    ],
+    "createdAt": "2025-06-01T18:02:02.085Z"
+  },
+  {
+    "email": "ugrasu@admin.ru",
+    "password": "g0twf6m1",
+    "uid": "DRqr4ka8qlaWVNG6MxWRrPB5P1s2",
+    "role": "moderator",
+    "objectIds": [
+      "YF2ITFLhsGmxqxZrNTVH"
+    ],
+    "createdAt": "2025-06-01T18:03:46.443Z"
+  },
+  {
+    "email": "admin@admin.ru",
+    "password": "depm90m1",
+    "uid": "zuxhPy5S55SPsL6te8HGujPNxuP2",
+    "role": "admin",
+    "objectIds": [],
+    "createdAt": "2025-06-01T18:04:01.288Z"
+  },
+  {
+    "email": "ironfit@admin.com",
+    "password": "rryzpcp6",
+    "uid": "w8m5i1BWFfOApOTMnqStHJKbNys2",
+    "role": "moderator",
+    "objectIds": [
+      "WrtTk9YhILPSybXcRDlA"
+    ],
+    "createdAt": "2025-06-01T18:04:21.616Z"
+  },
+  {
+    "email": "vifit@admin.com",
+    "password": "4vo0m14x",
+    "uid": "MHWBNRaRHRfNxsmPef0J43974Vt2",
+    "role": "moderator",
+    "objectIds": [
+      "wRNlXIPgJuwBHIxbouTw"
+    ],
+    "createdAt": "2025-06-01T18:04:43.637Z"
+  },
+  {
+    "email": "leader@admin.ru",
+    "password": "z9jni7mp",
+    "uid": "HlzRiI7NbUScPrpDeTIS8hhkjPB3",
+    "role": "moderator",
+    "objectIds": [
       "dbrP8mcJxqABCswOXy2j"
     ],
-    "createdAt": "2025-05-26T11:24:45.325Z"
+    "createdAt": "2025-06-01T18:05:10.197Z"
+  },
+  {
+    "email": "olympiyskiy@admin.ru",
+    "password": "a9c829va",
+    "uid": "N4mFJk0GrBSzJVYR3qXyTUaLI0U2",
+    "role": "moderator",
+    "objectIds": [
+      "H2gYptbPfnDLsr1HvwZ5"
+    ],
+    "createdAt": "2025-06-01T18:05:35.861Z"
+  },
+  {
+    "email": "yugramegasport@admin.ru",
+    "uid": "6owLLO4LNlPbCDd6J9uww9MXPzF3",
+    "role": "moderator",
+    "objectIds": [
+      "5bjOIYLneKGNCPDbQdvm",
+      "DWLejXg2C5bUrAAY58Sb",
+      "lSdoAnszMQNJEZFvflAs"
+    ],
+    "createdAt": "2025-06-01T18:06:15.846Z"
+  },
+  {
+    "email": "geofizik@admin.ru",
+    "password": "yxi8t02e",
+    "uid": "1zJdfeRvAQcc6gULnEnXoD34sZk1",
+    "role": "moderator",
+    "objectIds": [
+      "BL0QTQRWW5i3yQTLhZad"
+    ],
+    "createdAt": "2025-06-01T18:06:37.884Z"
+  },
+  {
+    "email": "forward@admin.ru",
+    "uid": "1SPdj5kyK3YBgL6wHRGSvsdyoyf1",
+    "role": "moderator",
+    "objectIds": [
+      "mNgVjglBSaXXbWlY9ray"
+    ],
+    "createdAt": "2025-06-01T18:10:58.106Z"
   }
 ]
