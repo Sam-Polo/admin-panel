@@ -16,6 +16,7 @@ build/
 .firebase/
 
 serviceAccountKey.json
+users_info.json
 
 
 # Игнорировать локальные конфигурации и секреты

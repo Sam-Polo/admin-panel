@@ -68,6 +68,14 @@ function initAdminPanel(user, isAdmin) {
     // загружаем начальные данные
     console.log('Загрузка начальных данных...');
     loadObjects(user, isAdmin);
+
+    // добавляем обработчик кнопки "Добавить объект"
+    const addObjectBtn = document.getElementById('add-object-btn');
+    if (addObjectBtn) {
+        addObjectBtn.addEventListener('click', () => {
+            window.location.href = 'add-object.html';
+        });
+    }
 }
 
 // загрузка объектов
@@ -85,6 +93,9 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
         console.error('Не найден элемент tbody в таблице объектов');
         return;
     }
+    
+    // показываем индикатор загрузки
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">Загрузка объектов...</td></tr>';
     
     try {
         let query = db.collection('sportobjects');
@@ -131,6 +142,9 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             return;
         }
         
+        // создаем DocumentFragment для оптимизации производительности
+        const fragment = document.createDocumentFragment();
+        
         snapshot.forEach(doc => {
             const data = doc.data();
             console.log('Обработка объекта:', { id: doc.id, name: data.name });
@@ -142,21 +156,10 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             clone.querySelector('.object-address').textContent = data.address;
             clone.querySelector('.object-tags').textContent = data.tags ? data.tags.length : 0;
             
-            // устанавливаем id для кнопок и добавляем обработчики
+            // устанавливаем id для кнопок
             const editBtn = clone.querySelector('.btn-edit');
             const tagsBtn = clone.querySelector('.btn-tags');
             const deleteBtn = clone.querySelector('.btn-delete');
-            
-            console.log('Найдены кнопки:', {
-                edit: editBtn ? 'да' : 'нет',
-                tags: tagsBtn ? 'да' : 'нет',
-                delete: deleteBtn ? 'да' : 'нет'
-            });
-            
-            if (!editBtn) {
-                console.error('Кнопка редактирования не найдена в шаблоне');
-                return;
-            }
             
             editBtn.dataset.id = doc.id;
             tagsBtn.dataset.id = doc.id;
@@ -167,38 +170,41 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
                 deleteBtn.style.display = 'none';
             }
             
-            // добавляем обработчики сразу к клонированным кнопкам
-            editBtn.addEventListener('click', (e) => {
-                console.log('Клик по кнопке редактирования:', {
-                    id: doc.id,
-                    target: e.target,
-                    currentTarget: e.currentTarget
-                });
-                window.location.href = `edit-object.html?id=${doc.id}`;
+            fragment.appendChild(clone);
+        });
+        
+        // добавляем все строки одним действием
+        tbody.appendChild(fragment);
+        
+        // добавляем обработчики после добавления всех строк
+        tbody.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = btn.dataset.id;
+                window.location.href = `edit-object.html?id=${id}`;
             });
-            
-            tagsBtn.addEventListener('click', () => {
-                console.log('Управление тегами объекта:', doc.id);
-                window.location.href = `object-tags.html?id=${doc.id}`;
+        });
+        
+        tbody.querySelectorAll('.btn-tags').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                window.location.href = `object-tags.html?id=${id}`;
             });
-            
-            deleteBtn.addEventListener('click', async () => {
-                const objectName = deleteBtn.closest('tr').querySelector('.object-name').textContent;
+        });
+        
+        tbody.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.id;
+                const objectName = btn.closest('tr').querySelector('.object-name').textContent;
                 if (confirm(`Удалить объект "${objectName}"?`)) {
                     try {
-                        await db.collection('sportobjects').doc(doc.id).delete();
+                        await db.collection('sportobjects').doc(id).delete();
+                        showSuccess('Объект успешно удален');
                         loadObjects(user, isAdmin); // перезагружаем список
                     } catch (error) {
-                        alert('Ошибка удаления: ' + error.message);
+                        showError('Ошибка удаления: ' + error.message);
                     }
                 }
             });
-            
-            tbody.appendChild(clone);
-            
-            // проверяем, что кнопка действительно добавлена в DOM
-            const addedEditBtn = tbody.querySelector(`.btn-edit[data-id="${doc.id}"]`);
-            console.log('Кнопка добавлена в DOM:', addedEditBtn ? 'да' : 'нет');
         });
         
     } catch (error) {
@@ -222,6 +228,10 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
 async function loadUsers() {
     console.log('loadUsers вызван');
     try {
+        if (!auth.currentUser) {
+            throw new Error('Пользователь не авторизован');
+        }
+        
         // получаем токен для авторизации
         const token = await auth.currentUser.getIdToken();
         
@@ -541,14 +551,23 @@ async function saveUserInfoToFile(userData) {
     if (!SAVE_USERS_TO_FILE) return;
     
     try {
+        // проверяем обязательные поля
+        if (!userData.email || !userData.uid || !userData.role) {
+            throw new Error('Отсутствуют обязательные поля');
+        }
+        
         const userInfo = {
             email: userData.email,
-            password: userData.password,
             uid: userData.uid,
             role: userData.role,
             objectIds: userData.objectIds || [],
             createdAt: new Date().toISOString()
         };
+        
+        // если это новый пользователь, добавляем пароль
+        if (userData.password) {
+            userInfo.password = userData.password;
+        }
         
         const response = await fetch('http://localhost:3001/api/users/save-info', {
             method: 'POST',
@@ -735,4 +754,42 @@ window.addEventListener('load', () => {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM загружен');
     localStorage.setItem('pageReady', 'false');
-}); 
+});
+
+// функция для отображения ошибок
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    
+    // добавляем кнопку закрытия
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.className = 'error-close';
+    closeBtn.onclick = () => errorDiv.remove();
+    
+    errorDiv.appendChild(closeBtn);
+    document.body.appendChild(errorDiv);
+    
+    // автоматически скрываем через 5 секунд
+    setTimeout(() => errorDiv.remove(), 5000);
+}
+
+// функция для отображения успешного сообщения
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.textContent = message;
+    
+    // добавляем кнопку закрытия
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.className = 'success-close';
+    closeBtn.onclick = () => successDiv.remove();
+    
+    successDiv.appendChild(closeBtn);
+    document.body.appendChild(successDiv);
+    
+    // автоматически скрываем через 5 секунд
+    setTimeout(() => successDiv.remove(), 5000);
+} 
