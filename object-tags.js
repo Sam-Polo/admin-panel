@@ -296,53 +296,27 @@ const ObjectTagsPage = () => {
     // обработчик сохранения тегов
     const handleSave = async () => {
         try {
-            // проверяем, что все родительские теги добавлены
-            const getParentTags = (tagId) => {
-                const tag = tags.find(t => t.id === tagId);
-                if (!tag || !tag.parent) return [];
-                return [tag.parent.id, ...getParentTags(tag.parent.id)];
-            };
-            
-            const allNewTags = [...currentTags, ...selectedToAdd].filter(key => !selectedToRemove.includes(key));
-            const missingParents = selectedToAdd.flatMap(tagId => {
-                const parentTags = getParentTags(tagId);
-                return parentTags.filter(parentId => !allNewTags.includes(parentId));
+            // записываем изменения в историю
+            const batch = db.batch();
+            const timestamp = new Date();
+
+            // создаем ссылки на теги
+            const addedTagRefs = selectedToAdd.map(tagId => db.collection('tags').doc(tagId));
+            const removedTagRefs = selectedToRemove.map(tagId => db.collection('tags').doc(tagId));
+
+            // добавляем запись в историю
+            const changeRef = db.collection('tag_changes').doc();
+            batch.set(changeRef, {
+                object_id: db.collection('sportobjects').doc(objectId),
+                added_tags: addedTagRefs,
+                deleted_tags: removedTagRefs,
+                timestamp: timestamp,
+                user_id: auth.currentUser.uid,
+                user_email: auth.currentUser.email
             });
-            
-            if (missingParents.length > 0) {
-                const missingParentNames = missingParents.map(id => tags.find(t => t.id === id)?.name).filter(Boolean);
-                throw new Error(`Нельзя добавить тег без родительского тега. Отсутствуют: ${missingParentNames.join(', ')}`);
-            }
-            
-            // проверяем, что все дочерние теги удалены
-            const getChildTags = (tagId) => {
-                const tag = tags.find(t => t.id === tagId);
-                if (!tag) return [];
-                const children = tags.filter(t => t.parent && t.parent.id === tagId);
-                return [...children, ...children.flatMap(child => getChildTags(child.id))];
-            };
-            
-            const remainingTags = currentTags.filter(tag => !selectedToRemove.includes(tag));
-            const tagsWithChildren = selectedToRemove.filter(tagId => {
-                const childTags = getChildTags(tagId);
-                return childTags.some(childId => remainingTags.includes(childId));
-            });
-            
-            if (tagsWithChildren.length > 0) {
-                const tagNames = tagsWithChildren.map(id => tags.find(t => t.id === id)?.name).filter(Boolean);
-                throw new Error(`Нельзя удалить родительский тег, пока не удалены все его дочерние теги: ${tagNames.join(', ')}`);
-            }
-            
-            const newTags = [
-                ...currentTags
-                    .filter(tag => !selectedToRemove.includes(tag))
-                    .map(tagId => db.doc(`tags/${tagId}`)),
-                ...selectedToAdd.map(tagId => db.doc(`tags/${tagId}`))
-            ];
-            
-            await db.collection('sportobjects').doc(objectId).update({
-                tags: newTags
-            });
+
+            // выполняем batch запись
+            await batch.commit();
             
             // показываем модальное окно с результатами
             const addedTags = tags
@@ -357,6 +331,23 @@ const ObjectTagsPage = () => {
                 added: addedTags,
                 removed: removedTags
             });
+
+            // обновляем текущие теги
+            setCurrentTags(prevTags => {
+                const newTags = [...prevTags];
+                // добавляем новые теги
+                selectedToAdd.forEach(tagId => {
+                    if (!newTags.includes(tagId)) {
+                        newTags.push(tagId);
+                    }
+                });
+                // удаляем теги
+                return newTags.filter(tagId => !selectedToRemove.includes(tagId));
+            });
+            
+            // очищаем выбранные теги
+            setSelectedToAdd([]);
+            setSelectedToRemove([]);
             
         } catch (err) {
             console.error('Ошибка сохранения тегов:', err);
@@ -395,7 +386,10 @@ const ObjectTagsPage = () => {
         okButton.textContent = 'OK';
         okButton.onclick = () => {
             modal.remove();
-            window.location.href = 'index.html';
+            // обновляем историю, если мы на вкладке истории
+            if (activeTab === 'history') {
+                loadTagHistory(objectId);
+            }
         };
         
         content.appendChild(title);
@@ -405,6 +399,133 @@ const ObjectTagsPage = () => {
         
         document.body.appendChild(modal);
     };
+
+    // добавляем функцию загрузки истории
+    const loadTagHistory = async (objectId) => {
+        console.log('Загрузка истории для объекта:', objectId);
+        const historyList = document.getElementById('history-list');
+        if (!historyList) {
+            console.error('Не найден элемент history-list');
+            return;
+        }
+        
+        try {
+            const objectRef = db.collection('sportobjects').doc(objectId);
+            console.log('Создан reference на объект:', objectRef.path);
+            
+            const query = db.collection('tag_changes')
+                .where('object_id', '==', objectRef)
+                .orderBy('timestamp', 'desc');
+                
+            console.log('Выполняем запрос...');
+            const snapshot = await query.get();
+            console.log('Получено документов:', snapshot.size);
+            
+            if (snapshot.empty) {
+                console.log('История пуста');
+                historyList.innerHTML = '<tr><td colspan="4" class="empty">История изменений пуста</td></tr>';
+                return;
+            }
+
+            // отображаем историю
+            historyList.innerHTML = '';
+            let displayedCount = 0;
+            
+            for (const doc of snapshot.docs) {
+                const data = doc.data();
+                console.log('Обработка записи:', data);
+                
+                // получаем данные о тегах
+                const addedTags = await Promise.all(
+                    data.added_tags.map(ref => ref.get())
+                );
+                const deletedTags = await Promise.all(
+                    data.deleted_tags.map(ref => ref.get())
+                );
+                
+                // используем сохраненный email пользователя
+                const userEmail = data.user_email || 'Неизвестный пользователь';
+                
+                console.log('Добавленные теги:', addedTags.length);
+                console.log('Удаленные теги:', deletedTags.length);
+                
+                // создаем строки для добавленных тегов
+                for (const tagDoc of addedTags) {
+                    if (tagDoc.exists) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${formatDate(data.timestamp)}</td>
+                            <td>${tagDoc.data().name}</td>
+                            <td class="status-added">Добавлен</td>
+                            <td>${userEmail}</td>
+                        `;
+                        historyList.appendChild(tr);
+                        displayedCount++;
+                    }
+                }
+                
+                // создаем строки для удаленных тегов
+                for (const tagDoc of deletedTags) {
+                    if (tagDoc.exists) {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${formatDate(data.timestamp)}</td>
+                            <td>${tagDoc.data().name}</td>
+                            <td class="status-removed">Удален</td>
+                            <td>${userEmail}</td>
+                        `;
+                        historyList.appendChild(tr);
+                        displayedCount++;
+                    }
+                }
+            }
+            
+            console.log('Всего отображено записей:', displayedCount);
+
+        } catch (error) {
+            console.error('Ошибка загрузки истории:', error);
+            historyList.innerHTML = '<tr><td colspan="4" class="error">Ошибка загрузки истории</td></tr>';
+        }
+    };
+
+    // добавляем функцию форматирования даты
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '';
+        const date = timestamp.toDate();
+        return date.toLocaleString('ru-RU', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    // добавляем загрузку истории при переключении на вкладку
+    React.useEffect(() => {
+        if (activeTab === 'history') {
+            loadTagHistory(objectId);
+        }
+    }, [activeTab, objectId]);
+
+    // добавляем стили для таблицы
+    const style = document.createElement('style');
+    style.textContent = `
+        .history-table th {
+            color: #1a237e;
+            font-weight: bold;
+            padding: 12px;
+        }
+        .status-added {
+            color: #2e7d32;
+            font-weight: bold;
+        }
+        .status-removed {
+            color: #c62828;
+            font-weight: bold;
+        }
+    `;
+    document.head.appendChild(style);
 
     if (loading) {
         return <div className="loading">Загрузка...</div>;
@@ -440,6 +561,12 @@ const ObjectTagsPage = () => {
                     >
                         Добавить теги
                     </button>
+                    <button 
+                        className={`nav-btn ${activeTab === 'history' ? 'active' : ''}`} 
+                        onClick={() => setActiveTab('history')}
+                    >
+                        История изменений
+                    </button>
                 </div>
             </nav>
 
@@ -474,7 +601,7 @@ const ObjectTagsPage = () => {
                             </div>
                         </div>
                     </div>
-                ) : (
+                ) : activeTab === 'view' ? (
                     <div className="page active">
                         <div className="page-header">
                             <h2>Просмотр тегов</h2>
@@ -485,6 +612,49 @@ const ObjectTagsPage = () => {
                                 checkedKeys={currentTags}
                                 isViewMode={true}
                             />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="page active">
+                        <div className="page-header">
+                            <h2>История изменений тегов</h2>
+                        </div>
+                        <div className="history-container">
+                            <div className="filters">
+                                <input 
+                                    type="text" 
+                                    id="tag-search" 
+                                    placeholder="Поиск по тегу..."
+                                    className="search-input"
+                                />
+                                <div className="date-filters">
+                                    <input 
+                                        type="date" 
+                                        id="date-from" 
+                                        className="date-input"
+                                    />
+                                    <input 
+                                        type="date" 
+                                        id="date-to" 
+                                        className="date-input"
+                                    />
+                                </div>
+                            </div>
+                            <table className="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Дата</th>
+                                        <th>Тег</th>
+                                        <th>Изменение</th>
+                                        <th>Пользователь</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-list">
+                                    <tr>
+                                        <td colspan="4" className="loading">Загрузка истории...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 )}
