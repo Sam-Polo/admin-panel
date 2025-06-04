@@ -1,8 +1,6 @@
 // admin1.js:
 // инициализация панели управления
 function initAdminPanel(user, isAdmin) {
-    console.log('initAdminPanel вызван:', { user: user.email, isAdmin });
-    
     // проверяем существование элементов
     const adminPanel = document.getElementById('admin-panel');
     const authContainer = document.getElementById('auth-container');
@@ -32,10 +30,7 @@ function initAdminPanel(user, isAdmin) {
     // обработчики навигации
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            console.log('Нажата кнопка навигации:', e.target.dataset.page);
-            
             if (!isAdmin && e.target.dataset.page === 'users') {
-                console.log('Доступ запрещен: пользователь не админ');
                 return;
             }
             
@@ -49,14 +44,11 @@ function initAdminPanel(user, isAdmin) {
             const targetPage = document.getElementById(`${page}-page`);
             if (targetPage) {
                 targetPage.classList.add('active');
-                console.log(`Страница ${page} активирована`);
                 
                 // загружаем данные страницы
                 if (page === 'objects') {
-                    console.log('Загрузка объектов...');
                     loadObjects(user, isAdmin);
                 } else if (page === 'users' && isAdmin) {
-                    console.log('Загрузка пользователей...');
                     loadUsers();
                 }
             } else {
@@ -66,7 +58,6 @@ function initAdminPanel(user, isAdmin) {
     });
     
     // загружаем начальные данные
-    console.log('Загрузка начальных данных...');
     loadObjects(user, isAdmin);
 
     // добавляем обработчик кнопки "Добавить объект"
@@ -80,8 +71,6 @@ function initAdminPanel(user, isAdmin) {
 
 // загрузка объектов
 async function loadObjects(user, isAdmin, retryCount = 0) {
-    console.log('loadObjects вызван:', { user: user.email, isAdmin, retryCount });
-    
     const objectsList = document.getElementById('objects-list');
     if (!objectsList) {
         console.error('Не найден элемент objects-list');
@@ -99,14 +88,11 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
     
     try {
         let query = db.collection('sportobjects');
-        console.log('Начальный запрос к Firestore');
         
         // если не админ, показываем только доступные объекты
         if (!isAdmin) {
-            console.log('Пользователь не админ, получаем доступные объекты');
             const idTokenResult = await user.getIdTokenResult();
             const objectIds = idTokenResult.claims.objectIds || [];
-            console.log('Доступные объекты:', objectIds);
             
             if (objectIds.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" class="empty">У вас нет доступных объектов</td></tr>';
@@ -125,8 +111,6 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             query.get(),
             timeoutPromise
         ]);
-        
-        console.log('Получено объектов:', snapshot.size);
         
         if (snapshot.empty) {
             tbody.innerHTML = '<tr><td colspan="4" class="empty">Нет объектов</td></tr>';
@@ -147,7 +131,6 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
         
         snapshot.forEach(doc => {
             const data = doc.data();
-            console.log('Обработка объекта:', { id: doc.id, name: data.name });
             
             const clone = template.content.cloneNode(true);
             
@@ -164,6 +147,16 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             editBtn.dataset.id = doc.id;
             tagsBtn.dataset.id = doc.id;
             deleteBtn.dataset.id = doc.id;
+            
+            // добавляем кнопку управления фото
+            const photosBtn = document.createElement('button');
+            photosBtn.className = 'btn-photos';
+            photosBtn.dataset.id = doc.id;
+            photosBtn.textContent = 'Управление фото';
+            photosBtn.title = 'Управление фото';
+            
+            // вставляем кнопку перед кнопкой удаления
+            deleteBtn.parentNode.insertBefore(photosBtn, deleteBtn);
             
             // скрываем кнопку удаления для модераторов
             if (!isAdmin) {
@@ -207,12 +200,18 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
             });
         });
         
+        tbody.querySelectorAll('.btn-photos').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                window.location.href = `object-photos.html?id=${id}`;
+            });
+        });
+        
     } catch (error) {
         console.error('Ошибка загрузки объектов:', error);
         
         // если это ошибка таймаута или подключения, пробуем повторить
         if ((error.message === 'Timeout' || error.message.includes('Could not reach Cloud Firestore backend')) && retryCount < 3) {
-            console.log(`Повторная попытка загрузки (${retryCount + 1}/3)...`);
             tbody.innerHTML = '<tr><td colspan="4" class="loading">Переподключение к серверу...</td></tr>';
             
             // ждем перед повторной попыткой
@@ -792,4 +791,23 @@ function showSuccess(message) {
     
     // автоматически скрываем через 5 секунд
     setTimeout(() => successDiv.remove(), 5000);
-} 
+}
+
+// добавляем стили
+const style = document.createElement('style');
+style.textContent = `
+    .btn-photos {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 5px;
+    }
+
+    .btn-photos:hover {
+        background-color: #5a6268;
+    }
+`;
+document.head.appendChild(style); 

@@ -11,8 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // проверяем текущую страницу
     const isTagsPage = window.location.pathname.includes('object-tags.html');
+    const isPhotosPage = window.location.pathname.includes('object-photos.html');
     
-    if (!isTagsPage) {
+    if (!isTagsPage && !isPhotosPage) {
         // проверяем существование элементов только на главной странице
         authContainer = document.getElementById('auth-container');
         adminPanel = document.getElementById('admin-panel');
@@ -41,20 +42,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError('Ошибка входа: ' + error.message);
             }
         });
+    }
 
-        // обработка выхода
-        logoutBtn = document.getElementById('logout-btn');
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', async () => {
-                try {
-                    await auth.signOut();
-                    window.location.href = 'index.html'; // редирект на главную страницу
-                } catch (error) {
-                    console.error('Ошибка выхода:', error);
-                    showError('Ошибка выхода: ' + error.message);
-                }
-            });
-        }
+    // обработка выхода (общая для всех страниц)
+    logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await auth.signOut();
+                window.location.href = 'index.html';
+            } catch (error) {
+                console.error('Ошибка выхода:', error);
+                showError('Ошибка выхода: ' + error.message);
+            }
+        });
     }
 });
 
@@ -76,8 +77,9 @@ auth.onAuthStateChanged(async (user) => {
             
             // проверяем текущую страницу
             const isTagsPage = window.location.pathname.includes('object-tags.html');
+            const isPhotosPage = window.location.pathname.includes('object-photos.html');
             
-            if (!isTagsPage) {
+            if (!isTagsPage && !isPhotosPage) {
                 // проверяем существование элементов только на главной странице
                 const authContainer = document.getElementById('auth-container');
                 const adminPanel = document.getElementById('admin-panel');
@@ -109,9 +111,13 @@ auth.onAuthStateChanged(async (user) => {
     } else {
         console.log('Пользователь не авторизован');
         // показываем форму входа только на главной странице
-        if (!window.location.pathname.includes('object-tags.html')) {
+        if (!window.location.pathname.includes('object-tags.html') && 
+            !window.location.pathname.includes('object-photos.html')) {
             authContainer.classList.remove('hidden');
             adminPanel.classList.add('hidden');
+        } else {
+            // редирект на главную страницу для других страниц
+            window.location.href = 'index.html';
         }
     }
 });
@@ -124,5 +130,8 @@ function showError(message) {
         setTimeout(() => {
             errorMessage.textContent = '';
         }, 5000);
+    } else {
+        // если errorMessage не найден (на других страницах), показываем ошибку через alert
+        alert(message);
     }
 } 

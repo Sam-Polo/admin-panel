@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление фотографиями объекта - SportYugra Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js" defer></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js" defer></script>
+</head>
+<body>
+    <div id="root">
+        <div class="container">
+            <header>
+                <div class="header-left">
+                    <h1>Панель управления</h1>
+                </div>
+                <div class="header-right">
+                    <span id="user-email" class="user-email"></span>
+                    <button id="logout-btn">Выйти</button>
+                </div>
+            </header>
+
+            <div class="content">
+                <div class="page-header">
+                    <h2 id="object-name">Управление фотографиями объекта</h2>
+                    <button id="back-btn" class="back-btn">Назад</button>
+                </div>
+
+                <div class="photos-container">
+                    <div class="photos-actions">
+                        <button id="upload-btn" class="btn-primary">
+                            <i class="fas fa-upload"></i> Загрузить фото
+                        </button>
+                        <button id="delete-btn" class="btn-danger" disabled>
+                            <i class="fas fa-trash"></i> Удалить выбранные
+                        </button>
+                    </div>
+
+                    <div id="photos-grid" class="photos-grid">
+                        <!-- Здесь будут отображаться фотографии -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="firebase-config.js" defer></script>
+    <script src="auth.js" defer></script>
+    <script src="object-photos.js" defer></script>
+</body>
+</html> 
