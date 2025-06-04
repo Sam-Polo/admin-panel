@@ -431,6 +431,16 @@ const ObjectTagsPage = () => {
             historyList.innerHTML = '';
             let displayedCount = 0;
             
+            // получаем значения фильтров
+            const searchText = document.getElementById('tag-search')?.value.toLowerCase() || '';
+            const dateFrom = document.getElementById('date-from')?.value ? new Date(document.getElementById('date-from').value) : null;
+            const dateTo = document.getElementById('date-to')?.value ? new Date(document.getElementById('date-to').value) : null;
+            
+            // если указана дата "до", устанавливаем время на конец дня
+            if (dateTo) {
+                dateTo.setHours(23, 59, 59, 999);
+            }
+            
             for (const doc of snapshot.docs) {
                 const data = doc.data();
                 console.log('Обработка записи:', data);
@@ -449,35 +459,64 @@ const ObjectTagsPage = () => {
                 console.log('Добавленные теги:', addedTags.length);
                 console.log('Удаленные теги:', deletedTags.length);
                 
+                // функция для проверки фильтров
+                const checkFilters = (tagName, timestamp) => {
+                    // проверка поиска по названию тега
+                    if (searchText && !tagName.toLowerCase().includes(searchText)) {
+                        return false;
+                    }
+                    
+                    // проверка даты
+                    const changeDate = timestamp.toDate();
+                    if (dateFrom && changeDate < dateFrom) {
+                        return false;
+                    }
+                    if (dateTo && changeDate > dateTo) {
+                        return false;
+                    }
+                    
+                    return true;
+                };
+                
                 // создаем строки для добавленных тегов
                 for (const tagDoc of addedTags) {
                     if (tagDoc.exists) {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${formatDate(data.timestamp)}</td>
-                            <td>${tagDoc.data().name}</td>
-                            <td class="status-added">Добавлен</td>
-                            <td>${userEmail}</td>
-                        `;
-                        historyList.appendChild(tr);
-                        displayedCount++;
+                        const tagName = tagDoc.data().name;
+                        if (checkFilters(tagName, data.timestamp)) {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${formatDate(data.timestamp)}</td>
+                                <td>${tagName}</td>
+                                <td class="status-added">Добавлен</td>
+                                <td>${userEmail}</td>
+                            `;
+                            historyList.appendChild(tr);
+                            displayedCount++;
+                        }
                     }
                 }
                 
                 // создаем строки для удаленных тегов
                 for (const tagDoc of deletedTags) {
                     if (tagDoc.exists) {
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${formatDate(data.timestamp)}</td>
-                            <td>${tagDoc.data().name}</td>
-                            <td class="status-removed">Удален</td>
-                            <td>${userEmail}</td>
-                        `;
-                        historyList.appendChild(tr);
-                        displayedCount++;
+                        const tagName = tagDoc.data().name;
+                        if (checkFilters(tagName, data.timestamp)) {
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${formatDate(data.timestamp)}</td>
+                                <td>${tagName}</td>
+                                <td class="status-removed">Удален</td>
+                                <td>${userEmail}</td>
+                            `;
+                            historyList.appendChild(tr);
+                            displayedCount++;
+                        }
                     }
                 }
+            }
+            
+            if (displayedCount === 0) {
+                historyList.innerHTML = '<tr><td colspan="4" class="empty">Нет записей, соответствующих фильтрам</td></tr>';
             }
             
             console.log('Всего отображено записей:', displayedCount);
@@ -487,6 +526,42 @@ const ObjectTagsPage = () => {
             historyList.innerHTML = '<tr><td colspan="4" class="error">Ошибка загрузки истории</td></tr>';
         }
     };
+
+    // добавляем обработчики для фильтров
+    React.useEffect(() => {
+        if (activeTab === 'history') {
+            const searchInput = document.getElementById('tag-search');
+            const dateFromInput = document.getElementById('date-from');
+            const dateToInput = document.getElementById('date-to');
+            
+            const handleFilterChange = () => {
+                loadTagHistory(objectId);
+            };
+            
+            if (searchInput) {
+                searchInput.addEventListener('input', handleFilterChange);
+            }
+            if (dateFromInput) {
+                dateFromInput.addEventListener('change', handleFilterChange);
+            }
+            if (dateToInput) {
+                dateToInput.addEventListener('change', handleFilterChange);
+            }
+            
+            // очищаем обработчики при размонтировании
+            return () => {
+                if (searchInput) {
+                    searchInput.removeEventListener('input', handleFilterChange);
+                }
+                if (dateFromInput) {
+                    dateFromInput.removeEventListener('change', handleFilterChange);
+                }
+                if (dateToInput) {
+                    dateToInput.removeEventListener('change', handleFilterChange);
+                }
+            };
+        }
+    }, [activeTab, objectId]);
 
     // добавляем функцию форматирования даты
     const formatDate = (timestamp) => {
