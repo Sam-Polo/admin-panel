@@ -1179,4 +1179,24 @@ header {
     text-align: center;
     color: #ff4d4f;
     padding: 20px;
+}
+
+/* Стили для footer */
+.app-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #e7e7e7;
+    padding: 15px 0;
+    text-align: center;
+    margin-top: 30px;
+    font-size: 14px;
+    color: #666;
+}
+
+.app-footer a {
+    color: #1a73e8;
+    text-decoration: none;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
 } 
