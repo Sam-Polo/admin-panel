@@ -39,7 +39,7 @@ admin-panel/
   address: string,
   phone: string,
   location: geopoint,
-  photo-urls: array[string]   // массив URL фотографий
+  photo-urls: array[string],   // массив URL фотографий
   tags: array[reference],    // массив ссылок на теги
   // другие поля объекта
 }
@@ -168,7 +168,6 @@ admin-panel/
 ## Разработка
 
 1. Установка зависимостей:
-```bash
 npm install
 ```
 
