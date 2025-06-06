@@ -146,6 +146,29 @@ const SelectedTags = ({ tags, currentTags, selectedToAdd, selectedToRemove }) =>
     );
 };
 
+// импортируем функцию создания аудит-лога
+async function createAuditLog(action, details = {}) {
+    try {
+        if (!auth.currentUser) {
+            console.error('Невозможно создать запись лога: пользователь не авторизован');
+            return;
+        }
+        
+        const logEntry = {
+            user_id: auth.currentUser.uid,
+            user_email: auth.currentUser.email,
+            action: action,
+            details: details,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await db.collection('audit_logs').add(logEntry);
+        console.log('Запись аудит-лога создана:', { action, details });
+    } catch (error) {
+        console.error('Ошибка создания записи лога:', error);
+    }
+}
+
 // основной компонент страницы
 const ObjectTagsPage = () => {
     const [tags, setTags] = React.useState([]);
@@ -318,7 +341,7 @@ const ObjectTagsPage = () => {
             // выполняем batch запись
             await batch.commit();
             
-            // показываем модальное окно с результатами
+            // получаем названия тегов для показа и логов
             const addedTags = tags
                 .filter(tag => selectedToAdd.includes(tag.id))
                 .map(tag => tag.name);
@@ -327,6 +350,15 @@ const ObjectTagsPage = () => {
                 .filter(tag => selectedToRemove.includes(tag.id))
                 .map(tag => tag.name);
             
+            // создаем запись в аудит-логе
+            await createAuditLog('Изменение тегов', {
+                objectId: objectId,
+                objectName: objectName,
+                addedTags: addedTags,
+                removedTags: removedTags
+            });
+            
+            // показываем модальное окно с результатами
             showSuccessModal({
                 added: addedTags,
                 removed: removedTags

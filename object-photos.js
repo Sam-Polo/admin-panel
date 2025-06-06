@@ -38,8 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // обработчик кнопки "Назад"
-    document.getElementById('back-btn').addEventListener('click', () => {
-        window.history.back();
+    const backBtn = document.getElementById('back-btn');
+    backBtn.addEventListener('click', () => {
+        window.location.href = 'index.html';
     });
 
     // обработчик кнопки "Выйти"
@@ -52,61 +53,130 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // добавляем обработчик кнопки загрузки
-    document.getElementById('upload-btn').addEventListener('click', showUploadModal);
+    const uploadBtn = document.getElementById('upload-btn');
+    uploadBtn.addEventListener('click', showUploadModal);
+
+    // добавляем обработчик кнопки удаления
+    const deleteBtn = document.getElementById('delete-btn');
+    deleteBtn.addEventListener('click', () => {
+        const checkedBoxes = document.querySelectorAll('.photo-checkbox:checked');
+        const urls = Array.from(checkedBoxes).map(box => box.dataset.url);
+        
+        if (urls.length > 0) {
+            if (confirm(`Вы уверены, что хотите удалить ${urls.length} фото?`)) {
+                deletePhotos(urls);
+            }
+        }
+    });
+
+    // модальное окно для просмотра полноразмерного изображения
+    const fullsizeModal = document.getElementById('fullsize-modal');
+    const closeButtons = document.querySelectorAll('.close-btn');
+    
+    // закрытие модальных окон по клику на крестик
+    closeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const modal = btn.closest('.modal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        });
+    });
+    
+    // закрытие модальных окон по клику на затемнённый фон
+    window.addEventListener('click', (event) => {
+        if (event.target.classList.contains('modal')) {
+            event.target.classList.remove('show');
+        }
+    });
+
+    // загрузка данных объекта и фотографий
+    loadObjectData();
 });
 
 // функция загрузки фотографий
-function loadPhotos(photoUrls) {
+function loadPhotos(photoUrls = []) {
     const photosGrid = document.getElementById('photos-grid');
-    if (!photosGrid) {
-        console.error('Не найден элемент photos-grid');
+    const deleteButton = document.getElementById('delete-btn');
+    photosGrid.innerHTML = '';
+    
+    if (!photoUrls || photoUrls.length === 0) {
+        photosGrid.innerHTML = '<div class="empty-photos">Нет загруженных фотографий</div>';
+        deleteButton.disabled = true;
+        deleteButton.classList.add('disabled');
         return;
     }
     
-    photosGrid.innerHTML = '';
-
-    if (!Array.isArray(photoUrls) || photoUrls.length === 0) {
-        photosGrid.innerHTML = '<div class="empty-message">Нет загруженных фотографий</div>';
-        updateDeleteButton(); // обновляем состояние кнопки
-        return;
-    }
-
-    photoUrls.forEach((url, index) => {
+    photoUrls.forEach(url => {
         const photoContainer = document.createElement('div');
-        photoContainer.className = 'photo-item';
+        photoContainer.className = 'photo-container';
+        
+        const photo = document.createElement('img');
+        photo.src = url;
+        photo.alt = 'Фото объекта';
+        photo.className = 'photo-thumbnail';
+        photo.dataset.fullUrl = url;
+        
+        // Добавляем обработчик клика для открытия полноразмерного изображения
+        photo.addEventListener('click', (event) => {
+            if (!event.target.closest('.photo-checkbox')) {
+                showFullsizeImage(url);
+            }
+        });
         
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'photo-checkbox';
-        checkbox.dataset.index = index;
-        checkbox.dataset.url = url; // сохраняем URL в dataset
-        checkbox.addEventListener('change', updateDeleteButton);
+        checkbox.dataset.url = url;
+        checkbox.addEventListener('change', updateSelectedCount);
         
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = `Фото ${index + 1}`;
-        img.addEventListener('click', () => showFullPhoto(url));
-        
-        // добавляем обработчик ошибки загрузки изображения
-        img.onerror = () => {
-            console.error(`Ошибка загрузки изображения ${index + 1}:`, url);
-            photoContainer.classList.add('error');
-            img.alt = 'Ошибка загрузки изображения';
-        };
-        
+        photoContainer.appendChild(photo);
         photoContainer.appendChild(checkbox);
-        photoContainer.appendChild(img);
         photosGrid.appendChild(photoContainer);
     });
-    
-    updateDeleteButton(); // обновляем состояние кнопки после загрузки
 }
 
-// функция обновления состояния кнопки удаления
-function updateDeleteButton() {
-    const checkedBoxes = document.querySelectorAll('.photo-checkbox:checked');
+// функция открытия полноразмерного изображения
+function showFullsizeImage(imageUrl) {
+    const modal = document.getElementById('fullsize-modal');
+    const fullsizeImage = document.getElementById('fullsize-image');
+    
+    if (!modal || !fullsizeImage) {
+        console.error('Не найдены элементы модального окна');
+        return;
+    }
+    
+    fullsizeImage.src = imageUrl;
+    modal.style.display = 'flex';
+    
+    // закрытие модального окна при клике на крестик
+    const closeBtn = modal.querySelector('.close-btn');
+    if (closeBtn) {
+        closeBtn.onclick = function() {
+            modal.style.display = 'none';
+        };
+    }
+    
+    // закрытие модального окна при клике вне изображения
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    };
+}
+
+// обновление счетчика выбранных фотографий
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.photo-checkbox:checked');
     const deleteBtn = document.getElementById('delete-btn');
-    deleteBtn.disabled = checkedBoxes.length === 0;
+    
+    if (checkboxes.length > 0) {
+        deleteBtn.disabled = false;
+        deleteBtn.classList.remove('disabled');
+    } else {
+        deleteBtn.disabled = true;
+        deleteBtn.classList.add('disabled');
+    }
 }
 
 // функция показа фото в полном размере
@@ -310,6 +380,29 @@ async function deleteFromImgBB(deleteUrl) {
     }
 }
 
+// функция для создания записей в аудит-логах
+async function createAuditLog(action, details = {}) {
+    try {
+        if (!auth.currentUser) {
+            console.error('Невозможно создать запись лога: пользователь не авторизован');
+            return;
+        }
+        
+        const logEntry = {
+            user_id: auth.currentUser.uid,
+            user_email: auth.currentUser.email,
+            action: action,
+            details: details,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await db.collection('audit_logs').add(logEntry);
+        console.log('Запись аудит-лога создана:', { action, details });
+    } catch (error) {
+        console.error('Ошибка создания записи лога:', error);
+    }
+}
+
 // обработка выбранных файлов
 async function handleFiles(files, previewContainer) {
     previewContainer.innerHTML = '';
@@ -400,6 +493,14 @@ async function handleFiles(files, previewContainer) {
                 });
             });
             
+            // Логируем загрузку фотографии
+            await createAuditLog('Загрузка фото', {
+                objectId: objectId,
+                objectName: document.getElementById('object-name').textContent.replace('Управление фотографиями объекта "', '').replace('"', ''),
+                fileName: file.name,
+                fileSize: Math.round(file.size / 1024) + ' КБ'
+            });
+            
             // обновляем UI
             progressFill.style.width = '100%';
             progressText.textContent = 'Загружено';
@@ -446,6 +547,13 @@ async function deletePhotos(photoUrls) {
             transaction.update(objectRef, { 'photo-urls': newUrls });
         });
         
+        // Логируем удаление фотографий
+        await createAuditLog('Удаление фото', {
+            objectId: objectId,
+            objectName: document.getElementById('object-name').textContent.replace('Управление фотографиями объекта "', '').replace('"', ''),
+            photoCount: photoUrls.length
+        });
+        
         // обновляем галерею
         const doc = await objectRef.get();
         loadPhotos(doc.data()['photo-urls']);
@@ -456,21 +564,6 @@ async function deletePhotos(photoUrls) {
         showError(`Ошибка удаления: ${error.message}`);
     }
 }
-
-// добавляем обработчик кнопки удаления
-document.getElementById('delete-btn').addEventListener('click', async () => {
-    const checkedBoxes = document.querySelectorAll('.photo-checkbox:checked');
-    if (checkedBoxes.length === 0) return;
-    
-    const photoUrls = Array.from(checkedBoxes).map(checkbox => {
-        const img = checkbox.closest('.photo-item').querySelector('img');
-        return img.src;
-    });
-    
-    if (confirm(`Удалить выбранные фотографии (${photoUrls.length})?`)) {
-        await deletePhotos(photoUrls);
-    }
-});
 
 // добавляем стили
 const style = document.createElement('style');
@@ -828,4 +921,36 @@ style.textContent = `
         }
     }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+// загрузка данных объекта и фотографий
+async function loadObjectData() {
+    try {
+        const objectId = new URLSearchParams(window.location.search).get('id');
+        if (!objectId) {
+            showError('Не указан ID объекта');
+            return;
+        }
+        
+        const objectRef = db.collection('sportobjects').doc(objectId);
+        const doc = await objectRef.get();
+        
+        if (!doc.exists) {
+            showError('Объект не найден');
+            return;
+        }
+        
+        const data = doc.data();
+        
+        // устанавливаем название объекта в заголовок
+        const objectName = document.getElementById('object-name');
+        objectName.textContent = `Управление фотографиями объекта "${data.name}"`;
+        
+        // загружаем фотографии
+        const photoUrls = data['photo-urls'] || [];
+        loadPhotos(photoUrls);
+    } catch (error) {
+        console.error('Ошибка загрузки данных объекта:', error);
+        showError(`Ошибка загрузки данных: ${error.message}`);
+    }
+} 

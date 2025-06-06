@@ -15,6 +15,29 @@ const fieldNames = {
     location: 'Координаты'
 };
 
+// импортируем функцию создания аудит-лога
+async function createAuditLog(action, details = {}) {
+    try {
+        if (!auth.currentUser) {
+            console.error('Невозможно создать запись лога: пользователь не авторизован');
+            return;
+        }
+        
+        const logEntry = {
+            user_id: auth.currentUser.uid,
+            user_email: auth.currentUser.email,
+            action: action,
+            details: details,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await db.collection('audit_logs').add(logEntry);
+        console.log('Запись аудит-лога создана:', { action, details });
+    } catch (error) {
+        console.error('Ошибка создания записи лога:', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Страница редактирования загружена, id объекта:', objectId);
     
@@ -127,6 +150,13 @@ async function handleSubmit(e) {
         // обновляем данные в БД
         await db.collection('sportobjects').doc(objectId).update(changedData);
         console.log('Данные обновлены:', changedData);
+        
+        // Логируем редактирование объекта
+        await createAuditLog('Редактирование объекта', {
+            objectId: objectId,
+            objectName: formData.name,
+            changedFields: changedFields
+        });
         
         // сохраняем информацию об измененных полях в sessionStorage
         sessionStorage.setItem('editedFields', JSON.stringify(changedFields));

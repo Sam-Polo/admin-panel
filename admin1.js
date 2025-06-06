@@ -50,6 +50,8 @@ function initAdminPanel(user, isAdmin) {
                     loadObjects(user, isAdmin);
                 } else if (page === 'users' && isAdmin) {
                     loadUsers();
+                } else if (page === 'logs' && isAdmin) {
+                    loadAuditLogs();
                 }
             } else {
                 console.error(`Не найдена страница: ${page}-page`);
@@ -191,6 +193,11 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
                 if (confirm(`Удалить объект "${objectName}"?`)) {
                     try {
                         await db.collection('sportobjects').doc(id).delete();
+                        // Логируем удаление объекта
+                        await createAuditLog('Удаление объекта', {
+                            objectId: id,
+                            objectName: objectName
+                        });
                         showSuccess('Объект успешно удален');
                         loadObjects(user, isAdmin); // перезагружаем список
                     } catch (error) {
@@ -312,6 +319,12 @@ function addUserHandlers() {
                     if (!response.ok) {
                         throw new Error('Ошибка удаления пользователя');
                     }
+                    
+                    // Логируем удаление пользователя
+                    await createAuditLog('Удаление пользователя', {
+                        targetEmail: email,
+                        uid: btn.dataset.uid
+                    });
                     
                     loadUsers(); // перезагружаем список
                 } catch (error) {
@@ -645,6 +658,13 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
                 objectIds: claims.objectIds || []
             });
 
+            // Логируем изменение пользователя
+            await createAuditLog('Изменение пользователя', {
+                targetEmail: email,
+                role: role,
+                objectIds: claims.objectIds ? claims.objectIds.length : 'все'
+            });
+
             // обновляем данные в таблице
             loadUsers(); // перезагружаем список
             
@@ -681,6 +701,30 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
                 email: email,
                 role,
                 objectIds
+            });
+
+            // Собираем названия объектов для лога
+            let objectNames = [];
+            if (objectIds.length > 0) {
+                try {
+                    const objectsSnapshot = await db.collection('sportobjects')
+                        .where('__name__', 'in', objectIds)
+                        .get();
+                    
+                    objectsSnapshot.forEach(doc => {
+                        objectNames.push(doc.data().name || doc.id);
+                    });
+                } catch (error) {
+                    console.error('Ошибка при получении названий объектов:', error);
+                }
+            }
+
+            // Логируем добавление пользователя
+            await createAuditLog('Добавление пользователя', {
+                targetEmail: email,
+                role: role,
+                objectIds: role === 'admin' ? 'все' : objectIds,
+                objectNames: objectNames.length > 0 ? objectNames : undefined
             });
         }
         
@@ -810,4 +854,563 @@ style.textContent = `
         background-color: #5a6268;
     }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+// функция для создания записей в аудит-логах
+async function createAuditLog(action, details = {}) {
+    try {
+        if (!auth.currentUser) {
+            console.error('Невозможно создать запись лога: пользователь не авторизован');
+            return;
+        }
+        
+        const logEntry = {
+            user_id: auth.currentUser.uid,
+            user_email: auth.currentUser.email,
+            action: action,
+            details: details,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await db.collection('audit_logs').add(logEntry);
+    } catch (error) {
+        console.error('Ошибка создания записи лога:', error);
+    }
+}
+
+// переменные для пагинации логов
+let lastLogDoc = null;
+let hasMoreLogs = false;
+
+// загрузка аудит-логов
+async function loadAuditLogs(limit = 30, loadMore = false) {
+    const logsTableBody = document.getElementById('logs-list-body');
+    const loadMoreBtn = document.getElementById('load-more-logs');
+    const deleteLogsBtn = document.getElementById('delete-logs-btn');
+    
+    if (!logsTableBody) {
+        console.error('Не найден элемент logs-list-body');
+        return;
+    }
+    
+    // изначально кнопка удаления неактивна
+    if (deleteLogsBtn) {
+        deleteLogsBtn.disabled = true;
+        deleteLogsBtn.classList.add('disabled');
+    }
+    
+    // если это не подгрузка, очищаем таблицу и показываем индикатор загрузки
+    if (!loadMore) {
+        logsTableBody.innerHTML = '<tr><td colspan="5" class="loading">Загрузка логов...</td></tr>';
+        lastLogDoc = null;
+    }
+    
+    try {
+        // Получаем значения фильтров по дате
+        const dateFromInput = document.getElementById('logs-date-from');
+        const dateToInput = document.getElementById('logs-date-to');
+        
+        let dateFrom = null;
+        let dateTo = null;
+        
+        if (dateFromInput && dateFromInput.value) {
+            dateFrom = new Date(dateFromInput.value);
+            dateFrom.setHours(0, 0, 0, 0);
+        }
+        
+        if (dateToInput && dateToInput.value) {
+            dateTo = new Date(dateToInput.value);
+            dateTo.setHours(23, 59, 59, 999);
+        }
+        
+        // Создаем запрос к коллекции логов
+        let query = db.collection('audit_logs')
+            .orderBy('timestamp', 'desc');
+            
+        // Если есть фильтр по дате, применяем его
+        if (dateFrom) {
+            query = query.where('timestamp', '>=', dateFrom);
+        }
+        
+        if (dateTo) {
+            query = query.where('timestamp', '<=', dateTo);
+        }
+        
+        // Ограничиваем количество результатов
+        query = query.limit(limit);
+            
+        // Если это подгрузка и у нас есть последний документ, 
+        // начинаем с него для пагинации
+        if (loadMore && lastLogDoc) {
+            query = query.startAfter(lastLogDoc);
+        }
+            
+        const logsSnapshot = await query.get();
+        
+        // Если это не подгрузка и коллекция пуста
+        if (!loadMore && logsSnapshot.empty) {
+            logsTableBody.innerHTML = '<tr><td colspan="5" class="empty">Нет записей в журнале</td></tr>';
+            if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+            return;
+        }
+        
+        // Если это не подгрузка, очищаем таблицу
+        if (!loadMore) {
+            logsTableBody.innerHTML = '';
+        }
+        
+        // Заполняем таблицу данными
+        logsSnapshot.forEach(doc => {
+            const log = doc.data();
+            const tr = document.createElement('tr');
+            
+            // Форматируем дату
+            const timestamp = log.timestamp ? log.timestamp.toDate() : new Date();
+            const formattedDate = timestamp.toLocaleString('ru-RU', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            
+            // Определяем класс для действия
+            let actionClass = '';
+            if (log.action.includes('Удаление')) {
+                actionClass = 'action-delete';
+            } else if (log.action.includes('Добавление') || log.action.includes('Загрузка')) {
+                actionClass = 'action-add';
+            } else if (log.action.includes('Изменение') || log.action.includes('Редактирование')) {
+                actionClass = 'action-edit';
+            }
+            
+            // Форматируем детали для отображения
+            const details = formatLogDetails(log.details, true);
+            const fullDetails = formatLogDetails(log.details, false);
+            
+            // Создаем содержимое строки
+            tr.innerHTML = `
+                <td>${formattedDate}</td>
+                <td>${log.user_email || 'Н/Д'}</td>
+                <td class="${actionClass}">${log.action || 'Н/Д'}</td>
+                <td>
+                    <div class="log-details-truncated">${details}</div>
+                    <button class="btn-view-details" data-details='${JSON.stringify(fullDetails).replace(/'/g, "&#39;")}'>
+                        Подробнее
+                    </button>
+                </td>
+                <td>
+                    <input type="checkbox" class="log-checkbox" data-id="${doc.id}">
+                </td>
+            `;
+            
+            logsTableBody.appendChild(tr);
+        });
+        
+        // Сохраняем последний документ для пагинации
+        const lastVisible = logsSnapshot.docs[logsSnapshot.docs.length - 1];
+        if (lastVisible) {
+            lastLogDoc = lastVisible;
+            
+            // Проверяем, есть ли еще логи
+            const nextQuery = db.collection('audit_logs')
+                .orderBy('timestamp', 'desc')
+                .startAfter(lastVisible)
+                .limit(1);
+                
+            const nextSnapshot = await nextQuery.get();
+            hasMoreLogs = !nextSnapshot.empty;
+            
+            // Показываем или скрываем кнопку "Загрузить еще"
+            if (loadMoreBtn) {
+                loadMoreBtn.style.display = hasMoreLogs ? 'block' : 'none';
+            }
+        } else {
+            hasMoreLogs = false;
+            if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+        }
+        
+        // Добавляем обработчики для кнопок просмотра деталей
+        document.querySelectorAll('.btn-view-details').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const details = JSON.parse(btn.dataset.details);
+                showLogDetailsModal(details);
+            });
+        });
+        
+        // Добавляем обработчики для чекбоксов
+        document.querySelectorAll('.log-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateDeleteButtonState);
+        });
+        
+    } catch (error) {
+        console.error('Ошибка загрузки логов:', error);
+        logsTableBody.innerHTML = `<tr><td colspan="5" class="error">Ошибка загрузки: ${error.message}</td></tr>`;
+        if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+    }
+}
+
+// Функция обновления состояния кнопки удаления логов
+function updateDeleteButtonState() {
+    const selectedLogs = document.querySelectorAll('.log-checkbox:checked');
+    const deleteLogsBtn = document.getElementById('delete-logs-btn');
+    
+    if (deleteLogsBtn) {
+        if (selectedLogs.length > 0) {
+            deleteLogsBtn.disabled = false;
+            deleteLogsBtn.classList.remove('disabled');
+            deleteLogsBtn.style.opacity = '1';
+            deleteLogsBtn.style.cursor = 'pointer';
+        } else {
+            deleteLogsBtn.disabled = true;
+            deleteLogsBtn.classList.add('disabled');
+            deleteLogsBtn.style.opacity = '0.6';
+            deleteLogsBtn.style.cursor = 'not-allowed';
+        }
+    }
+}
+
+// Форматирование деталей лога
+function formatLogDetails(details, truncate = false) {
+    if (!details) return '';
+    
+    try {
+        // Если объект или массив, преобразуем в текстовое представление
+        if (typeof details === 'object') {
+            let result = '';
+            
+            // Форматируем разные типы деталей
+            if (details.objectId) {
+                result += `ID объекта: ${details.objectId}\n`;
+            }
+            
+            if (details.objectName) {
+                result += `Объект: "${details.objectName}"\n`;
+            }
+            
+            if (details.changedFields && Array.isArray(details.changedFields)) {
+                const fields = details.changedFields.join(', ');
+                result += `Изменены поля: ${truncate && fields.length > 100 ? fields.substring(0, 100) + '...' : fields}\n`;
+            }
+            
+            if (details.addedTags && Array.isArray(details.addedTags) && details.addedTags.length > 0) {
+                const tags = details.addedTags.join(', ');
+                result += `Добавлены теги: ${truncate && tags.length > 100 ? tags.substring(0, 100) + '...' : tags}\n`;
+            }
+            
+            if (details.removedTags && Array.isArray(details.removedTags) && details.removedTags.length > 0) {
+                const tags = details.removedTags.join(', ');
+                result += `Удалены теги: ${truncate && tags.length > 100 ? tags.substring(0, 100) + '...' : tags}\n`;
+            }
+            
+            if (details.targetEmail) {
+                result += `Целевой пользователь: ${details.targetEmail}\n`;
+            }
+            
+            if (details.role) {
+                result += `Роль: ${details.role}\n`;
+            }
+            
+            if (details.objectIds) {
+                if (typeof details.objectIds === 'string') {
+                    result += `Объекты: ${details.objectIds}\n`;
+                } else if (Array.isArray(details.objectIds)) {
+                    result += `Объекты: ${details.objectIds.length}\n`;
+                }
+            }
+            
+            if (details.objectNames && Array.isArray(details.objectNames)) {
+                const names = details.objectNames.join(', ');
+                result += `Названия объектов: ${truncate && names.length > 100 ? names.substring(0, 100) + '...' : names}\n`;
+            }
+            
+            if (details.photoCount) {
+                result += `Количество фото: ${details.photoCount}\n`;
+            }
+            
+            if (details.fileName) {
+                result += `Файл: ${details.fileName}\n`;
+            }
+            
+            if (details.fileSize) {
+                result += `Размер: ${details.fileSize}\n`;
+            }
+            
+            // Если ничего из вышеперечисленного не подошло, выводим весь объект
+            if (!result) {
+                result = JSON.stringify(details, null, 2)
+                    .replace(/[{}"]/g, '')  // Удаляем фигурные скобки и кавычки
+                    .replace(/,\n/g, '\n') // Заменяем запятую и перенос строки
+                    .replace(/:/g, ': ')     // Добавляем пробел после двоеточия
+                    .replace(/^\s+/gm, '');  // Удаляем начальные пробелы в строках
+            }
+            
+            return truncate && result.length > 150 ? result.substring(0, 150) + '...' : result;
+        }
+        
+        // Если строка, возвращаем как есть
+        return truncate && String(details).length > 150 ? String(details).substring(0, 150) + '...' : String(details);
+    } catch (e) {
+        console.error('Ошибка форматирования деталей лога:', e);
+        return String(details);
+    }
+}
+
+// Показ модального окна с деталями лога
+function showLogDetailsModal(details) {
+    // Проверяем, существует ли уже модальное окно
+    let modal = document.querySelector('.log-details-modal');
+    
+    // Если нет, создаем его
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'log-details-modal';
+        
+        const modalContent = document.createElement('div');
+        modalContent.className = 'log-details-modal-content';
+        
+        modalContent.innerHTML = `
+            <div class="log-details-modal-header">
+                <h3>Детали операции</h3>
+                <button class="log-details-modal-close">&times;</button>
+            </div>
+            <div class="log-details-modal-body">
+                <div id="log-details-content" class="log-details-content"></div>
+            </div>
+        `;
+        
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+        
+        // Добавляем обработчик для закрытия модального окна
+        const closeBtn = modal.querySelector('.log-details-modal-close');
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+        
+        // Закрытие по клику вне содержимого
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    }
+    
+    // Заполняем модальное окно данными
+    const detailsContent = modal.querySelector('#log-details-content');
+    if (detailsContent) {
+        // Если детали это объект, форматируем его
+        if (typeof details === 'object' && details !== null) {
+            let formattedContent = '';
+            for (const key in details) {
+                if (details.hasOwnProperty(key)) {
+                    let value = details[key];
+                    // Форматируем массивы
+                    if (Array.isArray(value)) {
+                        if (value.length > 0) {
+                            value = value.join(', ');
+                        } else {
+                            value = '[]';
+                        }
+                    }
+                    formattedContent += `<div class="detail-item"><strong>${key}:</strong> ${value}</div>`;
+                }
+            }
+            detailsContent.innerHTML = formattedContent;
+        } else if (typeof details === 'string') {
+            // Преобразуем текст с переносами строк в HTML
+            const htmlContent = details.split('\n').map(line => {
+                if (line.trim()) {
+                    const [label, ...valueParts] = line.split(':');
+                    const value = valueParts.join(':').trim();
+                    if (label && value) {
+                        return `<div class="detail-item"><strong>${label}:</strong> ${value}</div>`;
+                    }
+                    return `<div class="detail-item">${line}</div>`;
+                }
+                return '';
+            }).join('');
+            
+            detailsContent.innerHTML = htmlContent || details;
+        } else {
+            detailsContent.textContent = details;
+        }
+    }
+    
+    // Показываем модальное окно
+    modal.style.display = 'flex';
+}
+
+// Функция для удаления выбранных логов
+async function deleteSelectedLogs() {
+    const checkboxes = document.querySelectorAll('.log-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        alert('Выберите хотя бы один лог для удаления');
+        return;
+    }
+    
+    const confirmation = confirm(`Вы уверены, что хотите удалить ${checkboxes.length} записей журнала?`);
+    if (!confirmation) return;
+    
+    try {
+        const batch = db.batch();
+        checkboxes.forEach(checkbox => {
+            const logId = checkbox.dataset.id;
+            const logRef = db.collection('audit_logs').doc(logId);
+            batch.delete(logRef);
+        });
+        
+        await batch.commit();
+        
+        // Перезагружаем логи после удаления
+        loadAuditLogs();
+        
+        // Получаем данные текущего пользователя
+        const user = firebase.auth().currentUser;
+        const idTokenResult = await user.getIdTokenResult();
+        const isAdmin = idTokenResult.claims.admin === true;
+        
+        // Логируем действие удаления логов
+        await createAuditLog('Удаление записей журнала', {
+            count: checkboxes.length
+        }, isAdmin);
+        
+    } catch (error) {
+        console.error('Ошибка при удалении логов:', error);
+        alert(`Ошибка при удалении: ${error.message}`);
+    }
+}
+
+// Добавим обработчик для кнопки удаления логов
+document.addEventListener('DOMContentLoaded', () => {
+    const deleteLogsBtn = document.getElementById('delete-logs-btn');
+    if (deleteLogsBtn) {
+        deleteLogsBtn.addEventListener('click', deleteSelectedLogs);
+    }
+    
+    // Добавим обработчик для кнопки "Загрузить еще"
+    const loadMoreBtn = document.getElementById('load-more-logs');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+            loadAuditLogs(30, true);
+        });
+    }
+    
+    // Добавим обработчик для чекбокса "Выбрать все"
+    const selectAllCheckbox = document.getElementById('select-all-logs');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.log-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
+        });
+    }
+});
+
+// обработчики для фильтрации логов
+document.addEventListener('DOMContentLoaded', () => {
+    const logsSearch = document.getElementById('logs-search');
+    const logsActionFilter = document.getElementById('logs-action-filter');
+    const dateFromInput = document.getElementById('logs-date-from');
+    const dateToInput = document.getElementById('logs-date-to');
+    const applyDateFilterBtn = document.getElementById('apply-date-filter');
+    const resetDateFilterBtn = document.getElementById('reset-date-filter');
+    const loadMoreLogsBtn = document.getElementById('load-more-logs');
+    const deleteLogsBtn = document.getElementById('delete-logs-btn');
+
+    if (logsSearch) {
+        logsSearch.addEventListener('input', filterLogs);
+    }
+
+    if (logsActionFilter) {
+        logsActionFilter.addEventListener('change', filterLogs);
+    }
+
+    if (applyDateFilterBtn) {
+        applyDateFilterBtn.addEventListener('click', function() {
+            loadAuditLogs();
+        });
+    }
+
+    if (resetDateFilterBtn) {
+        resetDateFilterBtn.addEventListener('click', function() {
+            if (dateFromInput) dateFromInput.value = '';
+            if (dateToInput) dateToInput.value = '';
+            loadAuditLogs();
+        });
+    }
+
+    if (loadMoreLogsBtn) {
+        loadMoreLogsBtn.addEventListener('click', function() {
+            loadAuditLogs(30, true);
+        });
+    }
+
+    if (deleteLogsBtn) {
+        deleteLogsBtn.addEventListener('click', deleteSelectedLogs);
+    }
+});
+
+// функция фильтрации логов
+function filterLogs() {
+    const logsSearch = document.getElementById('logs-search');
+    const logsActionFilter = document.getElementById('logs-action-filter');
+    
+    const searchTerm = logsSearch ? logsSearch.value.toLowerCase() : '';
+    const actionFilter = logsActionFilter ? logsActionFilter.value.toLowerCase() : '';
+    
+    const rows = document.querySelectorAll('#logs-list-body tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        // Пропускаем строки с сообщениями о загрузке, ошибках и т.д.
+        if (row.querySelector('.loading, .empty, .error')) {
+            return;
+        }
+        
+        const dateCell = row.cells[0].textContent.toLowerCase();
+        const emailCell = row.cells[1].textContent.toLowerCase();
+        const actionCell = row.cells[2].textContent.toLowerCase();
+        const detailsCell = row.querySelector('.log-details-truncated') ? 
+                            row.querySelector('.log-details-truncated').textContent.toLowerCase() : '';
+        
+        const searchMatch = !searchTerm || 
+            dateCell.includes(searchTerm) || 
+            emailCell.includes(searchTerm) || 
+            actionCell.includes(searchTerm) || 
+            detailsCell.includes(searchTerm);
+            
+        const actionMatch = !actionFilter || actionCell.includes(actionFilter);
+        
+        row.style.display = searchMatch && actionMatch ? '' : 'none';
+        
+        if (searchMatch && actionMatch) {
+            visibleCount++;
+        }
+    });
+    
+    // Если нет видимых строк, показываем сообщение
+    const logsTableBody = document.getElementById('logs-list-body');
+    if (visibleCount === 0 && logsTableBody) {
+        // Удаляем существующее сообщение, если оно есть
+        const noResultsRow = logsTableBody.querySelector('.no-results');
+        if (noResultsRow) {
+            noResultsRow.remove();
+        }
+        
+        // Добавляем новое сообщение
+        const tr = document.createElement('tr');
+        tr.className = 'no-results';
+        tr.innerHTML = '<td colspan="5" class="empty">Нет записей, соответствующих фильтрам</td>';
+        logsTableBody.appendChild(tr);
+    } else {
+        // Удаляем сообщение, если оно есть и есть видимые строки
+        const noResultsRow = logsTableBody.querySelector('.no-results');
+        if (noResultsRow) {
+            noResultsRow.remove();
+        }
+    }
+} 
