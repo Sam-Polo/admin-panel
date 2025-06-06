@@ -168,7 +168,6 @@ admin-panel/
 ## Разработка
 
 1. Установка зависимостей:
-```bash
 npm install
 ```
 
@@ -177,7 +176,7 @@ npm install
 - Включить Authentication и Firestore
 - Скачать serviceAccountKey.json и положить в корень проекта
 
-3. Установка ролей:
+3. Установка ролей (настроить):
 ```bash
 node set-custom-claims.js
 ```
