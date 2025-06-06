@@ -319,24 +319,48 @@ const ObjectTagsPage = () => {
     // обработчик сохранения тегов
     const handleSave = async () => {
         try {
-            // записываем изменения в историю
+            const objectRef = db.collection('sportobjects').doc(objectId);
+
+            // 1. определяем итоговый список id тегов для объекта
+            const finalTagIds = [...currentTags]
+                .filter(tagId => !selectedToRemove.includes(tagId)) // убираем удаленные
+                .concat(selectedToAdd.filter(tagId => !currentTags.includes(tagId))); // добавляем новые
+
+            const finalTagRefs = finalTagIds.map(tagId => db.collection('tags').doc(tagId));
+
+            // начинаем batch
             const batch = db.batch();
-            const timestamp = new Date();
 
-            // создаем ссылки на теги
-            const addedTagRefs = selectedToAdd.map(tagId => db.collection('tags').doc(tagId));
-            const removedTagRefs = selectedToRemove.map(tagId => db.collection('tags').doc(tagId));
+            // 2. обновляем массив тегов в документе объекта
+            batch.update(objectRef, { tags: finalTagRefs });
+            
+            // 3. логируем изменения в tag_changes, исключая определенные теги
+            const excludedTagNames = ["Тренажерный зал", "Инвентарь"];
 
-            // добавляем запись в историю
-            const changeRef = db.collection('tag_changes').doc();
-            batch.set(changeRef, {
-                object_id: db.collection('sportobjects').doc(objectId),
-                added_tags: addedTagRefs,
-                deleted_tags: removedTagRefs,
-                timestamp: timestamp,
-                user_id: auth.currentUser.uid,
-                user_email: auth.currentUser.email
+            const tagsToLogAdd = selectedToAdd.filter(tagId => {
+                const tag = tags.find(t => t.id === tagId);
+                return tag && !excludedTagNames.includes(tag.name);
             });
+
+            const tagsToLogRemove = selectedToRemove.filter(tagId => {
+                const tag = tags.find(t => t.id === tagId);
+                return tag && !excludedTagNames.includes(tag.name);
+            });
+            
+            if (tagsToLogAdd.length > 0 || tagsToLogRemove.length > 0) {
+                const addedTagRefs = tagsToLogAdd.map(tagId => db.collection('tags').doc(tagId));
+                const removedTagRefs = tagsToLogRemove.map(tagId => db.collection('tags').doc(tagId));
+                const changeRef = db.collection('tag_changes').doc();
+
+                batch.set(changeRef, {
+                    object_id: objectRef,
+                    added_tags: addedTagRefs,
+                    deleted_tags: removedTagRefs,
+                    timestamp: new Date(),
+                    user_id: auth.currentUser.uid,
+                    user_email: auth.currentUser.email
+                });
+            }
 
             // выполняем batch запись
             await batch.commit();
@@ -350,13 +374,15 @@ const ObjectTagsPage = () => {
                 .filter(tag => selectedToRemove.includes(tag.id))
                 .map(tag => tag.name);
             
-            // создаем запись в аудит-логе
-            await createAuditLog('Изменение тегов', {
-                objectId: objectId,
-                objectName: objectName,
-                addedTags: addedTags,
-                removedTags: removedTags
-            });
+            // создаем запись в аудит-логе, только если были изменения
+            if (addedTags.length > 0 || removedTags.length > 0) {
+                await createAuditLog('Изменение тегов', {
+                    objectId: objectId,
+                    objectName: objectName,
+                    addedTags: addedTags,
+                    removedTags: removedTags
+                });
+            }
             
             // показываем модальное окно с результатами
             showSuccessModal({
@@ -365,17 +391,7 @@ const ObjectTagsPage = () => {
             });
 
             // обновляем текущие теги
-            setCurrentTags(prevTags => {
-                const newTags = [...prevTags];
-                // добавляем новые теги
-                selectedToAdd.forEach(tagId => {
-                    if (!newTags.includes(tagId)) {
-                        newTags.push(tagId);
-                    }
-                });
-                // удаляем теги
-                return newTags.filter(tagId => !selectedToRemove.includes(tagId));
-            });
+            setCurrentTags(finalTagIds);
             
             // очищаем выбранные теги
             setSelectedToAdd([]);
