@@ -232,7 +232,6 @@ async function loadObjects(user, isAdmin, retryCount = 0) {
 
 // загрузка пользователей
 async function loadUsers() {
-    console.log('loadUsers вызван');
     try {
         if (!auth.currentUser) {
             throw new Error('Пользователь не авторизован');
@@ -253,7 +252,6 @@ async function loadUsers() {
         }
         
         const users = await response.json();
-        console.log('Получено пользователей:', users.length);
         
         // обновляем таблицу
         const tbody = document.querySelector('#users-list tbody');
@@ -738,21 +736,15 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
 
 // функция проверки sessionStorage
 function checkSessionStorage() {
-    console.log('Проверка sessionStorage...');
     const editedFields = sessionStorage.getItem('editedFields');
     
-    console.log('Состояние:', { editedFields });
-    
     if (editedFields) {
-        console.log('Найдены измененные поля:', editedFields);
         showSuccessModal(JSON.parse(editedFields));
     }
 }
 
 // функция отображения информационного окна
 function showSuccessModal(changedFields) {
-    console.log('Показ информационного окна:', changedFields);
-    
     // удаляем существующее окно, если оно есть
     const existingModal = document.querySelector('.info-modal');
     if (existingModal) {
@@ -789,13 +781,11 @@ function showSuccessModal(changedFields) {
 
 // проверяем при загрузке страницы
 window.addEventListener('load', () => {
-    console.log('Страница полностью загружена');
     checkSessionStorage();
 });
 
 // проверяем при загрузке DOM
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM загружен');
     localStorage.setItem('pageReady', 'false');
 });
 

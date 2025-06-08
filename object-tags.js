@@ -163,7 +163,6 @@ async function createAuditLog(action, details = {}) {
         };
         
         await db.collection('audit_logs').add(logEntry);
-        console.log('Запись аудит-лога создана:', { action, details });
     } catch (error) {
         console.error('Ошибка создания записи лога:', error);
     }
@@ -242,8 +241,6 @@ const ObjectTagsPage = () => {
 
     // обработчик изменения выбранных тегов
     const handleCheck = (checkedKeys) => {
-        console.log('handleCheck вызван с:', checkedKeys);
-        
         const checked = Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked || [];
         
         // получаем все дочерние теги для каждого тега
@@ -450,7 +447,6 @@ const ObjectTagsPage = () => {
 
     // добавляем функцию загрузки истории
     const loadTagHistory = async (objectId) => {
-        console.log('Загрузка истории для объекта:', objectId);
         const historyList = document.getElementById('history-list');
         if (!historyList) {
             console.error('Не найден элемент history-list');
@@ -459,18 +455,14 @@ const ObjectTagsPage = () => {
         
         try {
             const objectRef = db.collection('sportobjects').doc(objectId);
-            console.log('Создан reference на объект:', objectRef.path);
             
             const query = db.collection('tag_changes')
                 .where('object_id', '==', objectRef)
                 .orderBy('timestamp', 'desc');
                 
-            console.log('Выполняем запрос...');
             const snapshot = await query.get();
-            console.log('Получено документов:', snapshot.size);
             
             if (snapshot.empty) {
-                console.log('История пуста');
                 historyList.innerHTML = '<tr><td colspan="4" class="empty">История изменений пуста</td></tr>';
                 return;
             }
@@ -491,7 +483,6 @@ const ObjectTagsPage = () => {
             
             for (const doc of snapshot.docs) {
                 const data = doc.data();
-                console.log('Обработка записи:', data);
                 
                 // получаем данные о тегах
                 const addedTags = await Promise.all(
@@ -503,9 +494,6 @@ const ObjectTagsPage = () => {
                 
                 // используем сохраненный email пользователя
                 const userEmail = data.user_email || 'Неизвестный пользователь';
-                
-                console.log('Добавленные теги:', addedTags.length);
-                console.log('Удаленные теги:', deletedTags.length);
                 
                 // функция для проверки фильтров
                 const checkFilters = (tagName, timestamp) => {
@@ -567,8 +555,6 @@ const ObjectTagsPage = () => {
                 historyList.innerHTML = '<tr><td colspan="4" class="empty">Нет записей, соответствующих фильтрам</td></tr>';
             }
             
-            console.log('Всего отображено записей:', displayedCount);
-
         } catch (error) {
             console.error('Ошибка загрузки истории:', error);
             historyList.innerHTML = '<tr><td colspan="4" class="error">Ошибка загрузки истории</td></tr>';
