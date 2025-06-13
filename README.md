@@ -1,4 +1,8 @@
 # Панель управления SportYugra
+Административная веб-панель для управления информацией объектов из Firestore. Разрабатывалась как дополнение к [мобильному приложению SportYugra]([URL_вашего_репозитория](https://github.com/Sam-Polo/sportYugra)
+
+<img src="https://github.com/user-attachments/assets/c8250e1f-6543-4c84-a552-075ac7959d7a" alt="Screenshot_210" width="30%"/>
+
 
 ## Структура проекта
 
